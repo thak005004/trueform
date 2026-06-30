@@ -14,3 +14,6 @@ next-env.d.ts
 
 # internal build brief — not part of the deliverable
 CLAUDE_CODE_BRIEF.md
+
+# private writeup — sent separately, not in the public repo
+WRITEUP.md

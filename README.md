@@ -57,4 +57,4 @@ Upload a normal W-2 first. Then try one built to trip a check:
 - a high earner missing the extra Medicare tax, also caught
 - two W-2s sharing one Social Security number but different names, flagged as a likely mixed-up document
 
-More on the decisions, the tradeoffs, and how I used AI tools is in [`WRITEUP.md`](./WRITEUP.md).
+A short writeup covering the decisions, the tradeoffs, and how I used AI tools is submitted separately.
