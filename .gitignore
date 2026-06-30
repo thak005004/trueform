@@ -11,3 +11,6 @@ node_modules/
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
+
+# internal build brief — not part of the deliverable
+CLAUDE_CODE_BRIEF.md
