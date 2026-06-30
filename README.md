@@ -1,86 +1,60 @@
-# TrueForm — W-2 extraction a tax preparer can trust
+# TrueForm: W-2 Extraction & Review
 
-A tool where a tax preparer uploads a client's W-2s and gets back **structured data they can
-trust** and push into tax software downstream.
+**Live:** https://grove-tax.vercel.app · **Repo:** https://github.com/thak005004/trueform
 
-- **Live:** https://grove-tax.vercel.app
-- **Code:** https://github.com/thak005004/trueform
+Upload a client's W-2s and get clean, structured data you can check and fix before it goes into your tax software.
 
-> Product thesis: **trust is the product, not extraction.** Calling a vision model on a PDF is
-> table stakes. The value is letting a preparer *verify and correct fast, and know exactly what to
-> double-check.* Trust here is built from observable signals — verifiable tax math, source-linking,
-> cross-document reconciliation — **never** the model's self-reported confidence (poorly calibrated:
-> a model reports high confidence on a transposed digit).
+Built for the Grove take-home by Aditi Thakur.
 
-## Quick start
+---
 
-```bash
-npm install
-echo "ANTHROPIC_API_KEY=sk-ant-..." > .env.local   # your key
-npm run dev        # http://localhost:3000
-npm test           # 13 tests (validation + reconciliation)
-npm run typecheck
-npm run build
-```
+## The idea
+
+Any vision model can pull the numbers off a W-2. The harder question is whether you can trust them. The model doesn't know when it's wrong, and it reports the same confidence whether it read a number right or not.
+
+TrueForm's approach is to verify the data against things that don't depend on the model's opinion: whether the tax math on the form actually works out, whether a second separate read of the document agrees, and whether a client's forms are consistent with each other. Anything that doesn't check out gets flagged for review. The goal is to let a preparer get through a stack of forms without having to re-read every box by hand.
 
 ## What it does
 
-1. **Upload** a W-2 (PDF / PNG / JPEG). PDFs rasterize in the browser via `pdfjs` at ~2–3× scale so
-   small box text stays legible (low DPI is the #1 silent extraction-accuracy killer).
-2. **Extract** via Anthropic vision with **forced tool use** — the tool's input schema *is* the zod
-   W-2 schema — then re-validated with zod. Free-text is never trusted; output is a typed schema.
-3. **Validate** with deterministic, auditable tax math (`src/lib/validation.ts`): Box 4 = 6.2% of
-   (Box 3 + Box 7) capped at the SS wage base; Box 6 = 1.45% of Box 5 + 0.9% Additional Medicare over
-   $200k; deferral reconciliation; SSN/EIN sanity; withholding plausibility.
-4. **Review** in a two-pane UI: document (source of truth) + grouped, triaged fields. Click a field to
-   highlight its source region; edit inline to re-validate live; confirm to mark human-verified; full
-   audit trail; keyboard loop to clear a form without the mouse; export JSON/CSV (box-keyed).
-5. **Packet + reconciliation:** add several W-2s as a client packet → dashboard with rolled-up totals
-   and **cross-document flags** (same SSN with different names/addresses; different SSNs in one packet).
+**Reads any W-2.** A clean PDF, a scan, or a photo someone took on their phone. It pulls every box into structured data.
 
-## Key decisions & tradeoffs
+**Checks the math.** A W-2 has to be internally consistent, and TrueForm knows the rules. Social Security tax should be 6.2% of the right wages. Medicare tax should be 1.45%, plus the extra 0.9% high earners owe over $200k. Social Security wages can't go past the year's cap. If a number doesn't add up it gets flagged, even when the model was sure it read it right.
 
-- **Trust from verifiable signals, not model confidence.** Every flag is arithmetic, a format rule, or
-  cross-field/cross-doc reconciliation — auditable code, not a model call. We deliberately do **not**
-  flag Box 1 ≠ Box 3 ≠ Box 5 as an error (they legitimately differ: pre-tax deferrals, the SS cap).
-- **Constrained the AI to a typed schema + validation.** A preparer can't trust unvalidated extraction,
-  so model output is forced into the W-2 schema and re-checked.
-- **Hand-verified tax constants** (SS wage base / rates 2021–2026) live in deterministic code, not model
-  recall — correctness there must be auditable.
-- **Source-linking degrades gracefully.** Vision bbox accuracy is approximate; highlights are padded
-  generously and fall back to the printed snippet when no bbox is returned.
-- **Payload safety (prod).** The API copy of each page is JPEG-encoded and downscaled to ≤1568px (what
-  the model downsizes to anyway), keeping the request well under Vercel's ~4.5MB limit. The crisp
-  full-res raster used by the viewer + highlighting is untouched.
-- **Build tooling.** The pre-built `src/lib` core uses NodeNext `.js` import specifiers; the app builds
-  with webpack + `extensionAlias` to resolve them without modifying the tested core.
+**Knows what not to flag.** Box 1 and Box 5 often differ on a real W-2, usually because of pre-tax 401k money. TrueForm recognizes that and confirms it's fine instead of raising a false alarm. A tool that flags normal forms just teaches you to ignore it.
 
-## AI stack (honest)
+**Reads each key field twice.** For the fields that matter most — names, SSNs, the headline dollar boxes — TrueForm runs a separate OCR pass over that exact spot on the document and compares it to what the model read. When the two disagree it shows you both and lets you pick. Two independent reads disagreeing is real, observable uncertainty, unlike a model just saying it's confident.
 
-- **Claude Code** to build the app (scaffold, UI, API routes, tests, deploy).
-- **Anthropic vision model** for extraction (forced tool use).
-- **Where I overrode the AI:** constrained free-text → typed schema; added deterministic validation;
-  refused to trust self-reported confidence; hand-verified the tax constants instead of model recall.
-- **Where I chose not to use AI:** the validation rules, tax constants, and reconciliation are plain
-  deterministic code, because correctness there must be auditable, not probabilistic.
+**Shows its work.** Click any field and it highlights where that value came from on the document, so you can check it against the source at a glance. Every field is editable, and the flags update the moment you fix something.
 
-## Assumptions
+**Handles a whole client, not one form.** Add several W-2s as one packet and it adds up the totals and checks them against each other. For example, it catches when the same Social Security number shows up under two different names, which usually means a form landed in the wrong client's folder. You can't see that one form at a time.
 
-US W-2s, tax years 2021–2026, common web image formats, roughly one form per file. HEIC and handwriting
-are out of scope.
+**Exports clean data** as JSON or CSV, organized by box number so it maps into tax software. It exports your corrections, not the raw read.
 
-## What I cut (and would do with more time)
+## Built with
 
-Deliberately scoped out to ship a tight, trustworthy build: **1099 support**, **prior-year anomaly
-detection**, a **second-model cross-read** (a genuinely independent OCR/model pass to flag misreads that
-stay self-consistent), **auth/multi-user**, and **persistence/a database**. Each is a real chunk; naming
-them as deliberate cuts beats half-building one. Also: queue/stream long extractions (a busy packet can
-approach the function timeout), and improve bbox accuracy.
+Next.js and TypeScript, deployed on Vercel. Extraction runs through the Anthropic API. A separate open-source OCR pass (Tesseract) acts as the independent second reader. PDFs are turned into images in the browser. There's no database. A client's data lives only in your session, which keeps sensitive tax information from sticking around.
 
-## Project layout
+## Run it locally
 
-- `src/lib/*` — pre-built, tested core (schema, tax constants, validation, extraction, export). **Not modified.**
-- `src/app/api/{extract,validate}` — server routes that reuse the core.
-- `src/state/packet-context.tsx` — client-packet state (documents, active doc, reconciliation source).
-- `src/review/*` — field config, review state, `reconcile.ts` (+ tests), export helpers.
-- `src/components/*` — review UI, dashboard, document viewer.
+```bash
+git clone https://github.com/thak005004/trueform.git
+cd trueform
+npm install
+echo "ANTHROPIC_API_KEY=your-key-here" > .env.local
+npm run dev          # http://localhost:3000
+```
+
+```bash
+npm test             # runs the math, reconciliation, and cross-check tests
+npm run typecheck
+```
+
+## See the trust layer work
+
+Upload a normal W-2 first. Then try one built to trip a check:
+
+- a W-2 with two digits swapped in the Social Security tax box, and the math catches it
+- a high earner missing the extra Medicare tax, also caught
+- two W-2s sharing one Social Security number but different names, flagged as a likely mixed-up document
+
+More on the decisions, the tradeoffs, and how I used AI tools is in [`WRITEUP.md`](./WRITEUP.md).
