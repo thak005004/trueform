@@ -4,13 +4,18 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useRef,
   useState,
   type ReactNode,
 } from "react";
 import type { W2 } from "@/lib/w2-schema";
 import type { ValidationResult } from "@/lib/validation";
-import type { ExtractResult } from "@/state/document-context";
+import {
+  usePacket,
+  type AuditEntry,
+  type PacketDocument,
+} from "@/state/document-context";
 import {
   auditValue,
   formatValue,
@@ -19,16 +24,10 @@ import {
   type FieldKind,
 } from "@/review/fields";
 
+export type { AuditEntry };
+
 /** Status a field row paints with: validation-derived, or human-verified. */
 export type FieldStatus = "error" | "review" | "verified" | "neutral";
-
-export interface AuditEntry {
-  field: string;
-  action: "edit" | "confirmed";
-  oldValue?: string;
-  newValue?: string;
-  at: number;
-}
 
 interface ReviewContextValue {
   w2: W2;
@@ -46,43 +45,48 @@ interface ReviewContextValue {
   toggleConfirm: (path: string) => void;
 
   effectiveStatus: (path: string) => FieldStatus;
-  /** True when the current value differs from what was originally extracted. */
   isEdited: (path: string) => boolean;
-  /** Formatted ORIGINAL value, for the "was …" marker. */
   originalText: (path: string, kind: FieldKind) => string;
   registerRow: (path: string, el: HTMLElement | null) => void;
 }
 
 const ReviewContext = createContext<ReviewContextValue | null>(null);
 
+/**
+ * Holds the live review state for ONE document (the active packet document).
+ * Initializes from that document's stored draft/validation/edits and syncs
+ * changes back to the packet, so each document keeps its own corrections.
+ * Mounted with a key of `${doc.id}-${doc.extractionVersion}` so re-extracting
+ * or switching documents starts fresh.
+ */
 export function ReviewProvider({
-  result,
+  doc,
   children,
 }: {
-  result: ExtractResult;
+  doc: PacketDocument;
   children: ReactNode;
 }) {
-  // Working copy of the W-2 the user edits; starts as a clone of the extraction.
-  const [w2, setW2] = useState<W2>(() => structuredClone(result.extraction.w2));
-  const [validation, setValidation] = useState<ValidationResult>(result.validation);
-  const [confirmed, setConfirmed] = useState<Set<string>>(() => new Set());
-  const [audit, setAudit] = useState<AuditEntry[]>([]);
+  const { updateReview } = usePacket();
+
+  // Initialize from the document's persisted review state.
+  const [w2, setW2] = useState<W2>(() => structuredClone(doc.draft ?? doc.extraction!.w2));
+  const [validation, setValidation] = useState<ValidationResult>(doc.validation!);
+  const [confirmed, setConfirmed] = useState<Set<string>>(() => new Set(doc.confirmed));
+  const [audit, setAudit] = useState<AuditEntry[]>(doc.audit);
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
 
   const rowRefs = useRef<Map<string, HTMLElement>>(new Map());
-  // Immutable snapshot of the extracted W-2 — the baseline an "edited" marker
-  // compares against. Reverting a value back to this clears the marker.
-  const originalRef = useRef<W2>(structuredClone(result.extraction.w2));
+  // Immutable baseline the "edited" marker compares against.
+  const originalRef = useRef<W2>(doc.original ?? structuredClone(doc.extraction!.w2));
+  const docId = doc.id;
 
-  const isEdited = useCallback(
-    (path: string) => getByPath(w2, path)?.value !== getByPath(originalRef.current, path)?.value,
-    [w2],
-  );
-  const originalText = useCallback(
-    (path: string, kind: FieldKind) => formatValue(getByPath(originalRef.current, path), kind),
-    [],
-  );
+  // Persist review state back to the packet document as it changes (so reconcile
+  // and a later doc-switch see the corrected values). Depends on docId, not the
+  // whole doc object, to avoid a write→re-render loop.
+  useEffect(() => {
+    updateReview(docId, { draft: w2, validation, confirmed: [...confirmed], audit });
+  }, [w2, validation, confirmed, audit, docId, updateReview]);
 
   const registerRow = useCallback((path: string, el: HTMLElement | null) => {
     if (el) rowRefs.current.set(path, el);
@@ -92,6 +96,15 @@ export function ReviewProvider({
   const focusPath = useCallback((path: string) => {
     rowRefs.current.get(path)?.focus();
   }, []);
+
+  const isEdited = useCallback(
+    (path: string) => getByPath(w2, path)?.value !== getByPath(originalRef.current, path)?.value,
+    [w2],
+  );
+  const originalText = useCallback(
+    (path: string, kind: FieldKind) => formatValue(getByPath(originalRef.current, path), kind),
+    [],
+  );
 
   const select = useCallback((path: string | null) => setSelected(path), []);
   const startEdit = useCallback((path: string) => {
@@ -148,15 +161,11 @@ export function ReviewProvider({
   const toggleConfirm = useCallback((path: string) => {
     setConfirmed((prev) => {
       const s = new Set(prev);
-      if (s.has(path)) {
-        s.delete(path);
-        return s;
-      }
-      s.add(path);
+      if (s.has(path)) s.delete(path);
+      else s.add(path);
       return s;
     });
     setAudit((prev) =>
-      // Log only the act of confirming (not un-confirming).
       prev.length && prev[prev.length - 1]?.field === path && prev[prev.length - 1]?.action === "confirmed"
         ? prev
         : [...prev, { field: path, action: "confirmed", at: Date.now() }],

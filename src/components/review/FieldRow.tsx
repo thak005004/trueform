@@ -41,7 +41,7 @@ export function FieldRow({ field }: { field: FieldDef }) {
       onClick={() => r.select(field.path)}
       onFocus={() => r.select(field.path)}
       className={`group relative rounded-md py-2 pl-4 pr-2 outline-none transition-colors ${
-        isSelected ? "bg-[color-mix(in_oklab,var(--accent)_6%,transparent)]" : "hover:bg-paper"
+        isSelected ? "bg-[color-mix(in_oklab,var(--accent)_4%,transparent)]" : "hover:bg-paper"
       }`}
     >
       {/* status spine (3px) */}

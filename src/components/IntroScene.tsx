@@ -35,8 +35,8 @@ export function IntroScene() {
           className="animate-rise mt-4 max-w-md text-base text-pretty text-ink-2"
           style={{ animationDelay: "120ms" }}
         >
-          Upload a form and TrueForm extracts every box, checks the tax math, and
-          shows you exactly what to double-check.
+          Upload a client&rsquo;s W-2s to begin. TrueForm extracts every box, checks
+          the tax math, and flags exactly what to verify.
         </p>
 
         <div className="animate-rise mt-9 w-full" style={{ animationDelay: "180ms" }}>

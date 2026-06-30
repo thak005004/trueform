@@ -127,3 +127,47 @@ function intrinsicSize(dataUrl: string): Promise<{ width: number; height: number
     img.src = dataUrl;
   });
 }
+
+/**
+ * Encode a page for the EXTRACTION API: downscale to a bounded long edge and
+ * JPEG-compress. Two reasons this is safe AND important:
+ *  - Anthropic's vision models downsize images to ~1568px on the long edge
+ *    anyway, so capping there sends the EXACT pixels the model will use — no
+ *    accuracy lost vs. shipping the bigger raster (which the API would shrink).
+ *  - It keeps the POST body far under Vercel's ~4.5MB request limit, which a
+ *    high-res photo or multi-page PDF rasterized to PNG can blow past in prod.
+ * The crisp full-res PNG used by the on-screen viewer + bbox highlighting is left
+ * untouched — only this API copy is reduced. (Resize + encode only; deliberately
+ * no deskew/contrast/preprocessing — that's a different, out-of-scope concern.)
+ */
+const MAX_API_EDGE_PX = 1568;
+const API_JPEG_QUALITY = 0.82; // high enough to keep small W-2 box text legible.
+
+export async function encodeForApi(page: RenderedPage): Promise<string> {
+  const scale = Math.min(1, MAX_API_EDGE_PX / Math.max(page.width, page.height));
+  const w = Math.max(1, Math.round(page.width * scale));
+  const h = Math.max(1, Math.round(page.height * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not get a 2D canvas context to encode the image.");
+
+  // JPEG has no alpha — flatten onto white so transparent PNG regions don't go black.
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+  const img = await loadImage(page.dataUrl);
+  ctx.drawImage(img, 0, 0, w, h);
+
+  return canvas.toDataURL("image/jpeg", API_JPEG_QUALITY);
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Could not decode the page image for encoding."));
+    img.src = src;
+  });
+}

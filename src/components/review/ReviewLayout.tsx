@@ -1,22 +1,23 @@
 "use client";
 
 import { useMemo } from "react";
-import { useDocument } from "@/state/document-context";
+import { useDocument, usePacket } from "@/state/document-context";
 import { ReviewProvider, useReview } from "@/review/review-context";
 import { getByPath } from "@/review/fields";
 import { PageStack, type Highlight } from "./PageStack";
 import { ReviewPanel } from "./ReviewPanel";
 
 /**
- * The two-pane review experience. Left = document (source of truth) with the
- * selected field's bbox highlighted. Right = grouped, triageable fields.
- * Keyed on resultVersion so a re-extract starts the review state fresh.
+ * The two-pane review experience for the ACTIVE packet document. Left =
+ * document (source of truth) with the selected field's bbox highlighted.
+ * Right = grouped, triageable fields. Keyed on the document id + extraction
+ * version so re-extracting or switching documents starts the review fresh.
  */
 export function ReviewLayout() {
-  const { result, resultVersion } = useDocument();
-  if (!result) return null;
+  const { active } = usePacket();
+  if (!active || !active.extraction || !active.validation) return null;
   return (
-    <ReviewProvider key={resultVersion} result={result}>
+    <ReviewProvider key={`${active.id}-${active.extractionVersion}`} doc={active}>
       <ReviewLayoutInner />
     </ReviewProvider>
   );

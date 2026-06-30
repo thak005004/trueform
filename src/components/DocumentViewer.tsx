@@ -4,6 +4,7 @@ import { useDocument } from "@/state/document-context";
 import { IntroScene } from "./IntroScene";
 import { PageStack } from "./review/PageStack";
 import { ReviewLayout } from "./review/ReviewLayout";
+import { Spinner } from "./packet/Dashboard";
 
 /**
  * Top-level switch for the main pane:
@@ -14,7 +15,7 @@ import { ReviewLayout } from "./review/ReviewLayout";
  *                extraction has returned { extraction, validation }.
  */
 export function DocumentViewer() {
-  const { pages, status, error, extractStatus, extractError, result } =
+  const { pages, status, error, extractStatus, extractError, result, extract } =
     useDocument();
 
   if (status === "idle") return <IntroScene />;
@@ -43,14 +44,22 @@ export function DocumentViewer() {
   return (
     <div className="h-full overflow-auto bg-paper">
       {extractStatus === "extracting" && (
-        <div className="sticky top-0 z-10 border-b border-line bg-surface px-4 py-2 text-sm text-ink-2">
-          <span className="animate-pulse">Extracting and validating…</span>
+        <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-line bg-surface px-4 py-2 text-sm text-ink-2">
+          <Spinner />
+          Extracting and validating…
         </div>
       )}
       {extractStatus === "error" && (
         <div className="px-4 pt-4">
-          <div className="mx-auto max-w-3xl rounded-card border border-error/30 bg-error-bg px-4 py-3 text-sm text-error">
-            {extractError}
+          <div className="mx-auto flex max-w-3xl items-center gap-3 rounded-card border border-error/30 bg-error-bg px-4 py-3 text-sm text-error">
+            <span className="flex-1">{extractError}</span>
+            <button
+              type="button"
+              onClick={() => extract()}
+              className="shrink-0 rounded-control border border-error/40 px-2.5 py-1 text-xs font-medium text-error hover:bg-surface"
+            >
+              Retry
+            </button>
           </div>
         </div>
       )}

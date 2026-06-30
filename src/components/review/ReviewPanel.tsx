@@ -183,10 +183,51 @@ function SummaryBar({
         <span className="text-[10px] text-ink-3">
           Box-keyed structured output for downstream tax software
         </span>
-        <span className="figure text-[10px] text-ink-3">
-          ↑↓ move · n next flag · e edit · c confirm
-        </span>
+        <KeyboardLegend />
       </div>
+    </div>
+  );
+}
+
+const SHORTCUTS: [string, string][] = [
+  ["↑ ↓ / j k", "Move between fields"],
+  ["n", "Jump to next flag"],
+  ["e / ↵", "Edit field"],
+  ["c", "Confirm field"],
+  ["esc", "Cancel edit"],
+];
+
+/** Discoverable "?" affordance that reveals the keyboard loop. */
+function KeyboardLegend() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Keyboard shortcuts"
+        aria-expanded={open}
+        className="flex h-5 w-5 items-center justify-center rounded-full border border-line text-[11px] text-ink-3 hover:border-ink-3 hover:text-ink-2"
+      >
+        ?
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-20 mt-1.5 w-56 rounded-card border border-line bg-surface p-2.5 shadow-[0_4px_16px_rgba(22,32,46,0.12)]">
+          <div className="mb-1.5 text-[10px] uppercase tracking-wide text-ink-3">
+            Keyboard
+          </div>
+          <ul className="flex flex-col gap-1">
+            {SHORTCUTS.map(([key, desc]) => (
+              <li key={key} className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-ink-2">{desc}</span>
+                <kbd className="figure rounded border border-line bg-paper px-1.5 py-0.5 text-[10px] text-ink-2">
+                  {key}
+                </kbd>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,7 +8,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test src/lib/validation.test.ts",
+    "test": "tsx --test src/lib/validation.test.ts src/review/reconcile.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
