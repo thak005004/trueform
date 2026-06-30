@@ -16,6 +16,7 @@ import {
   type AuditEntry,
   type PacketDocument,
 } from "@/state/document-context";
+import type { RenderedPage } from "@/render/renderDocument";
 import {
   auditValue,
   formatValue,
@@ -23,6 +24,12 @@ import {
   parseInput,
   type FieldKind,
 } from "@/review/fields";
+import {
+  disagree,
+  runCrossRead,
+  type CrossReadResult,
+  type FieldDisagreement,
+} from "@/review/cross-read";
 
 export type { AuditEntry };
 
@@ -48,6 +55,10 @@ interface ReviewContextValue {
   isEdited: (path: string) => boolean;
   originalText: (path: string, kind: FieldKind) => string;
   registerRow: (path: string, el: HTMLElement | null) => void;
+
+  /** Second-read (Tesseract) status + the ACTIVE disagreement for a field, if any. */
+  crossReadStatus: "running" | "done";
+  disagreementFor: (path: string) => FieldDisagreement | null;
 }
 
 const ReviewContext = createContext<ReviewContextValue | null>(null);
@@ -61,9 +72,11 @@ const ReviewContext = createContext<ReviewContextValue | null>(null);
  */
 export function ReviewProvider({
   doc,
+  pages,
   children,
 }: {
   doc: PacketDocument;
+  pages: RenderedPage[];
   children: ReactNode;
 }) {
   const { updateReview } = usePacket();
@@ -76,10 +89,32 @@ export function ReviewProvider({
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
 
+  const [crossRead, setCrossRead] = useState<CrossReadResult | null>(null);
+  const [crossReadStatus, setCrossReadStatus] = useState<"running" | "done">("running");
+
   const rowRefs = useRef<Map<string, HTMLElement>>(new Map());
   // Immutable baseline the "edited" marker compares against.
   const originalRef = useRef<W2>(doc.original ?? structuredClone(doc.extraction!.w2));
   const docId = doc.id;
+
+  // Independent second read (Tesseract) over the original extraction, once per open.
+  // Status starts at "running" (initial state); these async setStates land when the
+  // OCR pass resolves, guarded so a fast doc-switch can't set state after unmount.
+  useEffect(() => {
+    let cancelled = false;
+    runCrossRead(pages, originalRef.current)
+      .then((res) => {
+        if (cancelled) return;
+        setCrossRead(res);
+        setCrossReadStatus("done");
+      })
+      .catch(() => {
+        if (!cancelled) setCrossReadStatus("done");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pages]);
 
   // Persist review state back to the packet document as it changes (so reconcile
   // and a later doc-switch see the corrected values). Depends on docId, not the
@@ -172,15 +207,28 @@ export function ReviewProvider({
     );
   }, []);
 
+  // An ACTIVE disagreement = the second read differs from the CURRENT value and the
+  // field isn't confirmed. Editing toward the OCR value (or confirming) resolves it.
+  const disagreementFor = useCallback(
+    (path: string): FieldDisagreement | null => {
+      const d = crossRead?.disagreements[path];
+      if (!d || confirmed.has(path)) return null;
+      const current = getByPath(w2, path)?.value;
+      return disagree(d.kind, current, d.ocrText) ? d : null;
+    },
+    [crossRead, confirmed, w2],
+  );
+
   const effectiveStatus = useCallback(
     (path: string): FieldStatus => {
       if (confirmed.has(path)) return "verified";
       const status = validation.byField[path]?.status;
       if (status === "error") return "error";
       if (status === "review") return "review";
+      if (disagreementFor(path)) return "review";
       return "neutral";
     },
-    [confirmed, validation],
+    [confirmed, validation, disagreementFor],
   );
 
   return (
@@ -202,6 +250,8 @@ export function ReviewProvider({
         isEdited,
         originalText,
         registerRow,
+        crossReadStatus,
+        disagreementFor,
       }}
     >
       {children}

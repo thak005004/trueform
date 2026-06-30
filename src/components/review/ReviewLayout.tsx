@@ -17,7 +17,11 @@ export function ReviewLayout() {
   const { active } = usePacket();
   if (!active || !active.extraction || !active.validation) return null;
   return (
-    <ReviewProvider key={`${active.id}-${active.extractionVersion}`} doc={active}>
+    <ReviewProvider
+      key={`${active.id}-${active.extractionVersion}`}
+      doc={active}
+      pages={active.pages}
+    >
       <ReviewLayoutInner />
     </ReviewProvider>
   );

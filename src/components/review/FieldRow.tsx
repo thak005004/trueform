@@ -31,6 +31,7 @@ export function FieldRow({ field }: { field: FieldDef }) {
   const isEditing = r.editing === field.path;
   const isConfirmed = r.confirmed.has(field.path);
   const edited = r.isEdited(field.path);
+  const disagreement = r.disagreementFor(field.path);
   const mono = isMono(field.kind);
   const blank = fieldObj?.value == null;
 
@@ -104,6 +105,51 @@ export function FieldRow({ field }: { field: FieldDef }) {
               {iss.message}
             </p>
           ))}
+
+          {/* cross-read disagreement: two independent reads differ — show both, let the preparer pick */}
+          {disagreement && (
+            <div
+              className="mt-1.5 rounded-md px-2 py-1.5"
+              style={{ background: "var(--review-bg)" }}
+            >
+              <p className="text-[11px] font-medium" style={{ color: "var(--review)" }}>
+                Two reads disagree — confirm against the document.
+              </p>
+              <div className="mt-1 flex flex-col gap-0.5 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-ink-3">Model</span>
+                  <span className="figure text-ink">{disagreement.modelDisplay}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-ink-3">Second read</span>
+                  <span className="figure text-ink">{disagreement.ocrText}</span>
+                </div>
+              </div>
+              <div className="mt-1.5 flex gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    r.commitEdit(field.path, field.kind, disagreement.ocrText);
+                  }}
+                  className="rounded-control px-2 py-0.5 text-[11px] font-medium text-white"
+                  style={{ background: "var(--review)" }}
+                >
+                  Use second read
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    r.toggleConfirm(field.path);
+                  }}
+                  className="rounded-control border border-line px-2 py-0.5 text-[11px] text-ink-2 hover:bg-surface"
+                >
+                  Keep model
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* source-link fallback when there is no bbox to highlight */}
           {isSelected && !fieldObj?.source?.bbox && fieldObj?.source?.snippet && (

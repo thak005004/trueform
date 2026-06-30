@@ -20,6 +20,7 @@ export function ReviewPanel() {
     confirmed,
     selected,
     effectiveStatus,
+    crossReadStatus,
     select,
     focusPath,
     startEdit,
@@ -43,17 +44,18 @@ export function ReviewPanel() {
     [groups],
   );
 
-  // Triage counts: per-field, minus confirmed (so confirming clears a flag).
+  // Triage counts over the rendered fields via effectiveStatus, so they reflect
+  // math validation, confirmations, AND cross-read disagreements uniformly.
   const { errors, reviews, verified, ready } = useMemo(() => {
     let e = 0;
     let w = 0;
-    for (const [path, fs] of Object.entries(validation.byField)) {
-      if (confirmed.has(path)) continue;
-      if (fs.status === "error") e++;
-      else if (fs.status === "review") w++;
+    for (const path of orderedPaths) {
+      const s = effectiveStatus(path);
+      if (s === "error") e++;
+      else if (s === "review") w++;
     }
     return { errors: e, reviews: w, verified: confirmed.size, ready: e === 0 && w === 0 };
-  }, [validation, confirmed]);
+  }, [orderedPaths, effectiveStatus, confirmed]);
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if ((e.target as HTMLElement).tagName === "INPUT") return; // editing owns its keys
@@ -116,6 +118,7 @@ export function ReviewPanel() {
         ready={ready}
         taxYear={validation.resolvedTaxYear}
         taxYearExact={validation.taxYearExact}
+        crossChecking={crossReadStatus === "running"}
       />
 
       <div className="flex-1">
@@ -143,6 +146,7 @@ function SummaryBar({
   ready,
   taxYear,
   taxYearExact,
+  crossChecking,
 }: {
   errors: number;
   reviews: number;
@@ -150,6 +154,7 @@ function SummaryBar({
   ready: boolean;
   taxYear: number;
   taxYearExact: boolean;
+  crossChecking: boolean;
 }) {
   return (
     <div className="sticky top-0 z-10 border-b border-line bg-surface px-4 py-3">
@@ -158,8 +163,7 @@ function SummaryBar({
         <span className="text-review">{reviews} need review</span>
         <span className="text-verified">{verified} verified</span>
         <span className="ml-auto text-ink-3">
-          tax year {taxYear}
-          {taxYearExact ? "" : " (fallback)"}
+          {crossChecking ? "second read…" : `tax year ${taxYear}${taxYearExact ? "" : " (fallback)"}`}
         </span>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
