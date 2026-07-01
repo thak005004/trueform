@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useReview } from "@/review/review-context";
 import { usePacket } from "@/state/document-context";
 import { buildGroups } from "@/review/fields";
-import { downloadCSV, downloadJSON } from "@/review/export-download";
+import { downloadCSV, downloadEFW2, downloadFieldMap, downloadJSON } from "@/review/export-download";
 
 interface Item {
   id: string;
@@ -44,6 +44,8 @@ export function CommandPalette() {
     const actions: Item[] = [
       { id: "act:json", kind: "action", label: "Export JSON", hint: "Action", run: () => downloadJSON(r.w2, r.audit) },
       { id: "act:csv", kind: "action", label: "Export CSV", hint: "Action", run: () => downloadCSV(r.w2) },
+      { id: "act:efw2", kind: "action", label: "Export EFW2 (SSA e-file record)", hint: "Action", run: () => downloadEFW2(r.w2) },
+      { id: "act:map", kind: "action", label: "Export import map (box → 1040)", hint: "Action", run: () => downloadFieldMap(r.w2) },
       { id: "act:print", kind: "action", label: "Print client summary", hint: "Action", run: () => window.print() },
     ];
     if (documents.length > 1) {

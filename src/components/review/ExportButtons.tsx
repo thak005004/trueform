@@ -1,7 +1,7 @@
 "use client";
 
 import { useReview } from "@/review/review-context";
-import { downloadCSV, downloadJSON } from "@/review/export-download";
+import { downloadCSV, downloadEFW2, downloadFieldMap, downloadJSON } from "@/review/export-download";
 
 /**
  * Export the CURRENT corrected W-2 (post-edits) as JSON or CSV. Always available;
@@ -19,11 +19,29 @@ export function ExportButtons({ emphasized }: { emphasized: boolean }) {
     <div className="flex items-center gap-2">
       <button type="button" onClick={() => downloadJSON(w2, audit)} className={cls}>
         <DownloadIcon />
-        Export JSON
+        JSON
       </button>
       <button type="button" onClick={() => downloadCSV(w2)} className={cls}>
         <DownloadIcon />
-        Export CSV
+        CSV
+      </button>
+      <button
+        type="button"
+        onClick={() => downloadEFW2(w2)}
+        className={cls}
+        title="SSA electronic-filing record (RW/RS) — the layout tax software / the SSA consume"
+      >
+        <DownloadIcon />
+        EFW2
+      </button>
+      <button
+        type="button"
+        onClick={() => downloadFieldMap(w2)}
+        className={cls}
+        title="Plain-English map of each box to where it lands on the 1040 / state return"
+      >
+        <DownloadIcon />
+        Import map
       </button>
     </div>
   );
