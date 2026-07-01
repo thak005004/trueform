@@ -13,11 +13,16 @@ const PILLARS = [
   "Source-linked to the page",
 ];
 
-// Bundled synthetic W-2s so a reviewer can try the whole flow without a document
-// of their own. One clean, one with a transposed Box 4 (the tax math catches it).
+// Bundled synthetic W-2s (different people/employers/amounts) so a reviewer can try
+// the whole flow without a document of their own — each exercises a different part
+// of the trust layer.
 const SAMPLES = [
-  { url: "/samples/w2-clean.pdf", name: "sample-w2-clean.pdf", label: "Clean W-2" },
-  { url: "/samples/w2-transposed-box4.pdf", name: "sample-w2-box4-error.pdf", label: "With a Box 4 error" },
+  { url: "/samples/w2-clean.pdf", name: "sample-w2-clean.pdf", label: "Clean W-2", type: "application/pdf" },
+  { url: "/samples/w2-transposed-box4.pdf", name: "sample-box4-error.pdf", label: "Box 4 error", type: "application/pdf" },
+  { url: "/samples/w2-high-earner.pdf", name: "sample-high-earner.pdf", label: "High earner", type: "application/pdf" },
+  { url: "/samples/w2-roth.pdf", name: "sample-roth-401k.pdf", label: "Roth 401(k)", type: "application/pdf" },
+  { url: "/samples/w2-multistate.pdf", name: "sample-multistate.pdf", label: "Multi-state", type: "application/pdf" },
+  { url: "/samples/w2-messy.jpg", name: "sample-messy-scan.jpg", label: "Messy scan", type: "image/jpeg" },
 ];
 
 /**
@@ -40,15 +45,15 @@ export function IntroScene() {
     }
   }
 
-  async function fetchSample(url: string, name: string): Promise<File> {
+  async function fetchSample(url: string, name: string, type = "application/pdf"): Promise<File> {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Sample not found (${res.status}).`);
-    return new File([await res.blob()], name, { type: "application/pdf" });
+    return new File([await res.blob()], name, { type });
   }
 
-  async function loadSample(url: string, name: string) {
+  async function loadSample(url: string, name: string, type: string) {
     try {
-      loadFile(await fetchSample(url, name));
+      loadFile(await fetchSample(url, name, type));
     } catch {
       alert("Couldn't load that sample — please try uploading a file instead.");
     }
@@ -120,7 +125,7 @@ export function IntroScene() {
               <span key={s.url} className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => loadSample(s.url, s.name)}
+                  onClick={() => loadSample(s.url, s.name, s.type)}
                   className="font-medium text-accent underline-offset-2 hover:underline"
                 >
                   {s.label}
