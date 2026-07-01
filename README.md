@@ -22,7 +22,7 @@ TrueForm's approach is to verify the data against things that don't depend on th
 
 **Knows what not to flag.** Box 1 and Box 5 often differ on a real W-2, usually because of pre-tax 401k money. TrueForm recognizes that and confirms it's fine instead of raising a false alarm. A tool that flags normal forms just teaches you to ignore it.
 
-**Reads each key field twice.** For the fields that matter most — names, SSNs, the headline dollar boxes — TrueForm runs a separate OCR pass over that exact spot on the document and compares it to what the model read. When the two disagree it shows you both and lets you pick. Two independent reads disagreeing is real, observable uncertainty, unlike a model just saying it's confident.
+**Reads the high-value fields twice.** For the identity IDs (SSN, EIN) and the headline dollar boxes (1, 2, 16), TrueForm runs a separate OCR pass over that spot on the document and checks that the model's value actually appears there. When the second read can't confirm it, the field is flagged to check against the document. Two independent reads disagreeing is real, observable uncertainty, unlike a model just saying it's confident. (Names and addresses are deliberately left out of this check — see the writeup.)
 
 **Shows its work.** Click any field and it highlights where that value came from on the document, so you can check it against the source at a glance. Every field is editable, and the flags update the moment you fix something.
 
