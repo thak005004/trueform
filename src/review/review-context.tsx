@@ -25,8 +25,8 @@ import {
   type FieldKind,
 } from "@/review/fields";
 import {
-  disagree,
   runCrossRead,
+  valuePresent,
   type CrossReadResult,
   type FieldDisagreement,
 } from "@/review/cross-read";
@@ -207,14 +207,15 @@ export function ReviewProvider({
     );
   }, []);
 
-  // An ACTIVE disagreement = the second read differs from the CURRENT value and the
-  // field isn't confirmed. Editing toward the OCR value (or confirming) resolves it.
+  // An ACTIVE "couldn't confirm" = the second read didn't contain the CURRENT value
+  // and the field isn't confirmed. Editing to a value the region OCR contains (or
+  // confirming the field) resolves it.
   const disagreementFor = useCallback(
     (path: string): FieldDisagreement | null => {
       const d = crossRead?.disagreements[path];
       if (!d || confirmed.has(path)) return null;
       const current = getByPath(w2, path)?.value;
-      return disagree(d.kind, current, d.ocrText) ? d : null;
+      return valuePresent(d.kind, current, d.ocrText) ? null : d;
     },
     [crossRead, confirmed, w2],
   );
