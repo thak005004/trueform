@@ -39,6 +39,42 @@ export function parseSession(json: string): SessionFile {
   return s as SessionFile;
 }
 
+// --- in-tab persistence (survives reload, cleared when the tab closes) --------
+// sessionStorage (not localStorage) keeps the "data doesn't linger" stance: it's
+// wiped on tab close, so a refresh doesn't lose the review but nothing is stored
+// long-term. Best-effort — large multi-doc packets can exceed the quota, in which
+// case we simply skip persisting (the explicit Save/Open still covers that).
+const STORAGE_KEY = "trueform:session";
+
+export function saveToStorage(
+  documents: PacketDocument[],
+  activeId: string | null,
+  view: PacketView,
+) {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, serializeSession(documents, activeId, view));
+  } catch {
+    /* quota exceeded or unavailable — fall back to no auto-persist */
+  }
+}
+
+export function loadFromStorage(): SessionFile | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    return raw ? parseSession(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearStorage() {
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function downloadSession(
   documents: PacketDocument[],
   activeId: string | null,

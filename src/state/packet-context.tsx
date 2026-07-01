@@ -13,13 +13,16 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { encodeForApi, renderDocument, type RenderedPage } from "@/render/renderDocument";
 import type { W2, W2Extraction } from "@/lib/w2-schema";
 import type { ValidationResult } from "@/lib/validation";
+import { clearStorage, loadFromStorage, saveToStorage } from "@/state/session-file";
 
 export interface AuditEntry {
   field: string;
@@ -116,6 +119,34 @@ export function PacketProvider({ children }: { children: ReactNode }) {
   const [documents, setDocuments] = useState<PacketDocument[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [view, setView] = useState<PacketView>("document");
+
+  // Restore an in-progress review from sessionStorage on mount, so a reload
+  // doesn't lose work. (Initialized empty first to avoid an SSR/hydration
+  // mismatch, then restored on the client.)
+  useEffect(() => {
+    const saved = loadFromStorage();
+    if (saved) {
+      // Loading persisted client-only state on mount is the correct SSR pattern
+      // (a lazy initializer would hydrate-mismatch); the rule doesn't apply here.
+      /* eslint-disable react-hooks/set-state-in-effect */
+      setDocuments(saved.documents);
+      setActiveId(saved.activeId);
+      setView(saved.view);
+      /* eslint-enable react-hooks/set-state-in-effect */
+    }
+  }, []);
+
+  // Persist on change. Skip the first run so the mount restore (which lands one
+  // render later) isn't clobbered by the initial empty state.
+  const skipPersist = useRef(true);
+  useEffect(() => {
+    if (skipPersist.current) {
+      skipPersist.current = false;
+      return;
+    }
+    if (documents.length === 0) clearStorage();
+    else saveToStorage(documents, activeId, view);
+  }, [documents, activeId, view]);
 
   const patchDoc = useCallback((id: string, patch: Partial<PacketDocument>) => {
     setDocuments((docs) => docs.map((d) => (d.id === id ? { ...d, ...patch } : d)));
