@@ -17,3 +17,10 @@ CLAUDE_CODE_BRIEF.md
 
 # private writeup — sent separately, not in the public repo
 WRITEUP.md
+
+# stray Tesseract training data (downloaded from CDN at runtime, never needed in-repo)
+eng.traineddata
+*.traineddata
+
+# internal build-continuity doc — not part of the deliverable
+HANDOFF.md

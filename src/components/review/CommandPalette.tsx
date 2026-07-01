@@ -7,6 +7,7 @@ import { buildGroups } from "@/review/fields";
 import { downloadCSV, downloadJSON } from "@/review/export-download";
 
 interface Item {
+  id: string;
   kind: "action" | "field";
   label: string;
   hint: string;
@@ -41,15 +42,16 @@ export function CommandPalette() {
 
   const items = useMemo<Item[]>(() => {
     const actions: Item[] = [
-      { kind: "action", label: "Export JSON", hint: "Action", run: () => downloadJSON(r.w2, r.audit) },
-      { kind: "action", label: "Export CSV", hint: "Action", run: () => downloadCSV(r.w2) },
-      { kind: "action", label: "Print client summary", hint: "Action", run: () => window.print() },
+      { id: "act:json", kind: "action", label: "Export JSON", hint: "Action", run: () => downloadJSON(r.w2, r.audit) },
+      { id: "act:csv", kind: "action", label: "Export CSV", hint: "Action", run: () => downloadCSV(r.w2) },
+      { id: "act:print", kind: "action", label: "Print client summary", hint: "Action", run: () => window.print() },
     ];
     if (documents.length > 1) {
-      actions.push({ kind: "action", label: "Back to packet dashboard", hint: "Action", run: openDashboard });
+      actions.push({ id: "act:dashboard", kind: "action", label: "Back to packet dashboard", hint: "Action", run: openDashboard });
     }
     const fields: Item[] = buildGroups(r.w2).flatMap((g) =>
       g.fields.map((f) => ({
+        id: `field:${f.path}`,
         kind: "field" as const,
         label: `${f.box ? f.box + " · " : ""}${f.label}`,
         hint: g.title,
@@ -112,7 +114,7 @@ export function CommandPalette() {
         <ul className="max-h-72 overflow-auto py-1">
           {filtered.length === 0 && <li className="px-4 py-3 text-sm text-ink-3">No matches</li>}
           {filtered.map((it, i) => (
-            <li key={i}>
+            <li key={it.id}>
               <button
                 type="button"
                 onMouseEnter={() => setIdx(i)}

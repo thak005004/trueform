@@ -42,20 +42,29 @@ export function IntroScene() {
 
   async function fetchSample(url: string, name: string): Promise<File> {
     const res = await fetch(url);
+    if (!res.ok) throw new Error(`Sample not found (${res.status}).`);
     return new File([await res.blob()], name, { type: "application/pdf" });
   }
 
   async function loadSample(url: string, name: string) {
-    loadFile(await fetchSample(url, name));
+    try {
+      loadFile(await fetchSample(url, name));
+    } catch {
+      alert("Couldn't load that sample — please try uploading a file instead.");
+    }
   }
 
   // Load a 2-year packet (2024 + 2025, same person) to demo prior-year comparison.
   async function loadPriorYearPacket() {
-    const files = await Promise.all([
-      fetchSample("/samples/w2-clean.pdf", "sample-w2-2025.pdf"),
-      fetchSample("/samples/w2-2024-prior.pdf", "sample-w2-2024.pdf"),
-    ]);
-    loadFiles(files);
+    try {
+      const files = await Promise.all([
+        fetchSample("/samples/w2-clean.pdf", "sample-w2-2025.pdf"),
+        fetchSample("/samples/w2-2024-prior.pdf", "sample-w2-2024.pdf"),
+      ]);
+      loadFiles(files);
+    } catch {
+      alert("Couldn't load the sample packet — please try uploading files instead.");
+    }
   }
 
   return (
