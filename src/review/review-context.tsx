@@ -59,6 +59,8 @@ interface ReviewContextValue {
   /** Second-read (Tesseract) status + the ACTIVE disagreement for a field, if any. */
   crossReadStatus: "running" | "done";
   disagreementFor: (path: string) => FieldDisagreement | null;
+  /** True when the second read positively confirmed this (still-unedited) field. */
+  crossReadConfirmed: (path: string) => boolean;
 }
 
 const ReviewContext = createContext<ReviewContextValue | null>(null);
@@ -220,6 +222,11 @@ export function ReviewProvider({
     [crossRead, confirmed, w2],
   );
 
+  const crossReadConfirmed = useCallback(
+    (path: string) => (crossRead?.confirmed.includes(path) ?? false) && !isEdited(path),
+    [crossRead, isEdited],
+  );
+
   const effectiveStatus = useCallback(
     (path: string): FieldStatus => {
       if (confirmed.has(path)) return "verified";
@@ -253,6 +260,7 @@ export function ReviewProvider({
         registerRow,
         crossReadStatus,
         disagreementFor,
+        crossReadConfirmed,
       }}
     >
       {children}

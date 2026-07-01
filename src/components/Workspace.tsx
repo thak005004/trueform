@@ -5,6 +5,8 @@ import { Uploader } from "./Uploader";
 import { IntroScene } from "./IntroScene";
 import { DocumentViewer } from "./DocumentViewer";
 import { Dashboard, Spinner } from "./packet/Dashboard";
+import { CoverSheet } from "./packet/CoverSheet";
+import { downloadSession } from "@/state/session-file";
 
 /**
  * Top-level client shell. A packet-aware header sits above the main pane, which
@@ -14,18 +16,20 @@ import { Dashboard, Spinner } from "./packet/Dashboard";
 export function Workspace() {
   return (
     <DocumentProvider>
-      <div className="flex h-screen flex-col bg-paper">
+      <div className="flex h-screen flex-col bg-paper print:hidden">
         <Header />
         <main className="min-h-0 flex-1">
           <PacketRouter />
         </main>
       </div>
+      {/* Print-only client summary (window.print shows just this). */}
+      <CoverSheet />
     </DocumentProvider>
   );
 }
 
 function Header() {
-  const { documents, view, openDashboard, reset } = usePacket();
+  const { documents, activeId, view, openDashboard, reset } = usePacket();
   const hasDocs = documents.length > 0;
   const showBack = view === "document" && documents.length > 1;
   const extractingCount = documents.filter((d) => d.extractStatus === "extracting").length;
@@ -57,6 +61,26 @@ function Header() {
           </button>
         )}
         {hasDocs && <Uploader />}
+        {hasDocs && (
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="rounded-control border border-line px-3 py-2 text-sm text-ink-2 hover:bg-paper"
+            title="Print / save a one-page client summary"
+          >
+            Summary
+          </button>
+        )}
+        {hasDocs && (
+          <button
+            type="button"
+            onClick={() => downloadSession(documents, activeId, view)}
+            className="rounded-control border border-line px-3 py-2 text-sm text-ink-2 hover:bg-paper"
+            title="Save this review session to a file you can reopen later"
+          >
+            Save
+          </button>
+        )}
         {hasDocs && (
           <button
             type="button"

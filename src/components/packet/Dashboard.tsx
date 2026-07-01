@@ -2,7 +2,12 @@
 
 import { useMemo } from "react";
 import { usePacket, type PacketDocument } from "@/state/document-context";
-import { reconcilePacket, type CrossDocIssue } from "@/review/reconcile";
+import {
+  reconcilePacket,
+  yearOverYear,
+  type CrossDocIssue,
+  type YearOverYear,
+} from "@/review/reconcile";
 import {
   docCurrentW2,
   docSummary,
@@ -16,6 +21,7 @@ export function Dashboard() {
   const { documents, openDocument, retryExtraction } = usePacket();
   // Reconcile from CORRECTED data (draft ?? extraction.w2) — edits update this live.
   const recon = useMemo(() => reconcilePacket(reconcileInputs(documents)), [documents]);
+  const yoy = useMemo(() => yearOverYear(reconcileInputs(documents)), [documents]);
   const single = documents.length <= 1;
 
   return (
@@ -38,6 +44,8 @@ export function Dashboard() {
         {!single && (
           <Reconciliation issues={recon.crossDocIssues} documents={documents} onJump={openDocument} />
         )}
+
+        {yoy.length > 0 && <YearOverYearPanel entries={yoy} onJump={openDocument} />}
 
         <DocumentList documents={documents} onOpen={openDocument} onRetry={retryExtraction} />
       </div>
@@ -111,6 +119,80 @@ function Reconciliation({
             })}
           </ul>
         )}
+      </div>
+    </section>
+  );
+}
+
+function YearOverYearPanel({
+  entries,
+  onJump,
+}: {
+  entries: YearOverYear[];
+  onJump: (id: string) => void;
+}) {
+  return (
+    <section className="overflow-hidden rounded-card border border-line bg-surface">
+      <header className="border-b border-line px-4 py-2.5 text-xs font-medium text-ink-3">
+        Year over year
+      </header>
+      <div className="flex flex-col divide-y divide-line">
+        {entries.map((e, i) => (
+          <div key={i} className="px-4 py-3">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-sm font-medium text-ink">
+                {e.employeeName ?? "—"}{" "}
+                <span className="figure text-xs text-ink-3">· SSN ••••{e.ssnLast4}</span>
+              </span>
+              <span className="figure text-xs text-ink-2">
+                {e.prior.year} → {e.current.year}
+              </span>
+            </div>
+
+            <div className="mt-1 text-xs text-ink-2">
+              Box 1 wages:{" "}
+              <span className="figure text-ink">
+                {usd(e.prior.box1)} → {usd(e.current.box1)}
+              </span>
+              {e.wageDeltaPct != null && (
+                <span
+                  className="figure ml-1.5"
+                  style={{ color: Math.abs(e.wageDeltaPct) >= 30 ? "var(--review)" : "var(--ink-3)" }}
+                >
+                  ({e.wageDeltaPct > 0 ? "+" : ""}
+                  {e.wageDeltaPct}%)
+                </span>
+              )}
+            </div>
+
+            {e.notes.map((n, k) => (
+              <p
+                key={k}
+                className="mt-1 text-[13px] leading-snug"
+                style={{ color: n.severity === "warning" ? "var(--review)" : "var(--ink-2)" }}
+              >
+                {n.message}
+              </p>
+            ))}
+
+            <div className="mt-1.5 flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => onJump(e.current.docId)}
+                className="rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] text-ink-2 hover:border-ink-3"
+              >
+                {e.current.year} →
+              </button>
+              <button
+                type="button"
+                onClick={() => onJump(e.prior.docId)}
+                className="rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] text-ink-2 hover:border-ink-3"
+              >
+                {e.prior.year} →
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
     </section>
   );

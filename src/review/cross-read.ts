@@ -31,6 +31,8 @@ export interface FieldDisagreement {
 
 export interface CrossReadResult {
   disagreements: Record<string, FieldDisagreement>;
+  /** Fields the second read positively CONFIRMED (value found in the region). */
+  confirmed: string[];
 }
 
 /**
@@ -166,6 +168,7 @@ async function cropRegion(pageDataUrl: string, bbox: Bbox): Promise<string> {
  */
 export async function runCrossRead(pages: { dataUrl: string }[], w2: W2): Promise<CrossReadResult> {
   const disagreements: Record<string, FieldDisagreement> = {};
+  const confirmed: string[] = [];
   const worker = await getWorker();
 
   for (const { path, kind } of CROSS_READ_FIELDS) {
@@ -178,13 +181,13 @@ export async function runCrossRead(pages: { dataUrl: string }[], w2: W2): Promis
       const crop = await cropRegion(pages[src.page].dataUrl, src.bbox);
       const { data } = await worker.recognize(crop);
       const ocrText = data.text.trim();
-      if (shouldFlag(kind, field.value, ocrText)) {
-        disagreements[path] = { ocrText, kind };
-      }
+      if (!hasReadableSignal(kind, ocrText)) continue; // no signal → couldn't verify
+      if (valuePresent(kind, field.value, ocrText)) confirmed.push(path);
+      else disagreements[path] = { ocrText, kind };
     } catch {
       // A single field's OCR failure shouldn't abort the whole pass.
     }
   }
 
-  return { disagreements };
+  return { disagreements, confirmed };
 }

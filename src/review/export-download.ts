@@ -1,5 +1,6 @@
 import type { W2 } from "@/lib/w2-schema";
-import { toCSV, toJSON, toRecord } from "@/lib/export";
+import { toCSV, toRecord } from "@/lib/export";
+import type { AuditEntry } from "@/state/document-context";
 
 /**
  * Client-side export. We run the CURRENT (post-edit) W-2 through the lib's
@@ -33,8 +34,19 @@ function triggerDownload(content: string, filename: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
-export function downloadJSON(w2: W2) {
-  triggerDownload(toJSON(w2), `${exportBaseName(w2)}.json`, "application/json");
+export function downloadJSON(w2: W2, audit: AuditEntry[] = []) {
+  // Box-keyed record at TOP LEVEL (drop-in for downstream import), plus an optional
+  // reviewAudit block — provenance matters in liability-heavy tax work, and it's
+  // safely ignorable by any importer that only reads the box fields.
+  const payload = {
+    ...toRecord(w2),
+    reviewAudit: {
+      corrections: audit.filter((a) => a.action === "edit").length,
+      confirmations: audit.filter((a) => a.action === "confirmed").length,
+      entries: audit,
+    },
+  };
+  triggerDownload(JSON.stringify(payload, null, 2), `${exportBaseName(w2)}.json`, "application/json");
 }
 
 export function downloadCSV(w2: W2) {

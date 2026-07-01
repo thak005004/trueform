@@ -66,6 +66,7 @@ interface PacketContextValue {
   active: PacketDocument | null;
   view: PacketView;
   loadFile: (file: File) => Promise<void>;
+  loadFiles: (files: File[]) => Promise<void>;
   reset: () => void;
   extract: () => Promise<void>;
   retryExtraction: (id: string) => Promise<void>;
@@ -73,6 +74,8 @@ interface PacketContextValue {
   openDocument: (id: string) => void;
   openDashboard: () => void;
   updateReview: (docId: string, patch: ReviewPatch) => void;
+  /** Replace the whole session (used by "open a saved review"). */
+  restore: (documents: PacketDocument[], activeId: string | null, view: PacketView) => void;
 }
 
 const PacketContext = createContext<PacketContextValue | null>(null);
@@ -213,6 +216,32 @@ export function PacketProvider({ children }: { children: ReactNode }) {
     [documents.length, patchDoc, runExtraction],
   );
 
+  // Load several files at once (e.g. a prior-year + current-year sample packet).
+  const loadFiles = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+      const entries = files.map((file) => ({ file, doc: blankDocument(file) }));
+      setDocuments((docs) => [...docs, ...entries.map((e) => e.doc)]);
+      setActiveId(entries[entries.length - 1].doc.id);
+      setView(files.length > 1 ? "dashboard" : "document");
+      await Promise.all(
+        entries.map(async ({ file, doc }) => {
+          try {
+            const pages = await renderDocument(file);
+            patchDoc(doc.id, { pages, status: "ready" });
+            await runExtraction(doc.id, pages);
+          } catch (e) {
+            patchDoc(doc.id, {
+              status: "error",
+              error: e instanceof Error ? e.message : "Failed to render the document.",
+            });
+          }
+        }),
+      );
+    },
+    [patchDoc, runExtraction],
+  );
+
   const reset = useCallback(() => {
     setDocuments([]);
     setActiveId(null);
@@ -232,6 +261,15 @@ export function PacketProvider({ children }: { children: ReactNode }) {
       if (doc) await runExtraction(doc.id, doc.pages);
     },
     [documents, runExtraction],
+  );
+
+  const restore = useCallback(
+    (docs: PacketDocument[], id: string | null, v: PacketView) => {
+      setDocuments(docs);
+      setActiveId(id);
+      setView(v);
+    },
+    [],
   );
 
   const setActive = useCallback((id: string) => setActiveId(id), []);
@@ -258,6 +296,7 @@ export function PacketProvider({ children }: { children: ReactNode }) {
         active,
         view,
         loadFile,
+        loadFiles,
         reset,
         extract,
         retryExtraction,
@@ -265,6 +304,7 @@ export function PacketProvider({ children }: { children: ReactNode }) {
         openDocument,
         openDashboard,
         updateReview,
+        restore,
       }}
     >
       {children}

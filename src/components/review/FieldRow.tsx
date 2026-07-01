@@ -3,6 +3,7 @@
 import {
   useEffect,
   useRef,
+  useState,
   type KeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
@@ -14,6 +15,8 @@ import {
   type FieldDef,
 } from "@/review/fields";
 import { useReview, type FieldStatus } from "@/review/review-context";
+import { suggestedFix } from "@/review/suggestions";
+import { explainMath } from "@/review/explain-math";
 
 const SPINE: Record<FieldStatus, string> = {
   error: "var(--error)",
@@ -24,6 +27,7 @@ const SPINE: Record<FieldStatus, string> = {
 
 export function FieldRow({ field }: { field: FieldDef }) {
   const r = useReview();
+  const [showMath, setShowMath] = useState(false);
   const fieldObj = getByPath(r.w2, field.path);
   const status = r.effectiveStatus(field.path);
   const issues = r.validation.byField[field.path]?.issues ?? [];
@@ -32,6 +36,10 @@ export function FieldRow({ field }: { field: FieldDef }) {
   const isConfirmed = r.confirmed.has(field.path);
   const edited = r.isEdited(field.path);
   const disagreement = r.disagreementFor(field.path);
+  // Positive signal: an unflagged field the independent second read confirmed.
+  const secondReadOk = status === "neutral" && r.crossReadConfirmed(field.path);
+  const fix = issues.length ? suggestedFix(issues) : null;
+  const math = issues.length ? explainMath(issues, r.w2) : null;
   const mono = isMono(field.kind);
   const blank = fieldObj?.value == null;
 
@@ -57,14 +65,26 @@ export function FieldRow({ field }: { field: FieldDef }) {
           {/* quiet meta line: box eyebrow + label (+ edited pill) */}
           <div className="flex items-center gap-2">
             {field.box && (
-              <span className="figure text-[10px] uppercase tracking-wide text-ink-3">
+              <span className="figure text-[11px] uppercase tracking-wide text-ink-2">
                 {field.box}
               </span>
             )}
-            <span className="truncate text-[11px] text-ink-3">{field.label}</span>
+            <span className="truncate text-sm text-ink-2">{field.label}</span>
             {edited && (
               <span className="ml-auto shrink-0 rounded-full border border-line bg-paper px-1.5 py-px text-[10px] text-ink-3">
                 edited
+              </span>
+            )}
+            {secondReadOk && (
+              <span
+                className="ml-auto flex shrink-0 cursor-default select-none items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                style={{ color: "var(--verified)", background: "var(--verified-bg)" }}
+                title="Confirmed by an independent second read (Tesseract OCR) — informational, not a button"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="m5 12 5 5L20 7" />
+                </svg>
+                2nd read
               </span>
             )}
           </div>
@@ -90,7 +110,7 @@ export function FieldRow({ field }: { field: FieldDef }) {
 
           {/* edited marker: show the original, struck through */}
           {edited && !isEditing && (
-            <p className="mt-0.5 text-[11px] text-ink-3">
+            <p className="mt-0.5 text-xs text-ink-2">
               was <span className="line-through">{r.originalText(field.path, field.kind)}</span>
             </p>
           )}
@@ -99,12 +119,52 @@ export function FieldRow({ field }: { field: FieldDef }) {
           {issues.map((iss, k) => (
             <p
               key={k}
-              className="mt-1 text-xs"
+              className="mt-1 text-[13px] leading-snug"
               style={{ color: messageColor(iss.severity, isConfirmed) }}
             >
               {iss.message}
             </p>
           ))}
+
+          {/* Transparency: the exact computation, numbers plugged in. */}
+          {math && status === "error" && (
+            <div className="mt-1">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMath((s) => !s);
+                }}
+                className="text-xs text-ink-3 underline-offset-2 hover:text-ink-2 hover:underline"
+              >
+                {showMath ? "Hide the math" : "Show the math"}
+              </button>
+              {showMath && (
+                <p className="figure mt-1 rounded-md bg-paper px-2 py-1 text-[13px] text-ink-2">
+                  {math}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* One-click fix: the value the tax math computes (deterministic, not a guess). */}
+          {fix && status === "error" && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                r.commitEdit(field.path, field.kind, String(fix.value));
+              }}
+              className="mt-1.5 inline-flex items-center gap-1.5 rounded-control px-2.5 py-1 text-xs font-medium text-white"
+              style={{ background: "var(--accent)" }}
+              title="Set this field to the value the tax math expects"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M5 13l4 4L19 7" />
+              </svg>
+              Apply {fix.display}
+            </button>
+          )}
 
           {/* cross-read: the independent second read couldn't confirm this value.
               The region OCR is a blob (not a clean alternative), so we don't offer a
@@ -133,7 +193,7 @@ export function FieldRow({ field }: { field: FieldDef }) {
 
           {/* source-link fallback when there is no bbox to highlight */}
           {isSelected && !fieldObj?.source?.bbox && fieldObj?.source?.snippet && (
-            <p className="mt-1 text-xs text-ink-3">
+            <p className="mt-1 text-[13px] text-ink-2">
               Source: “{fieldObj.source.snippet}”
             </p>
           )}
@@ -222,8 +282,8 @@ function ConfirmButton({
 }
 
 function messageColor(severity: "error" | "warning" | "info", confirmed: boolean): string {
-  if (confirmed) return "var(--ink-3)";
+  if (confirmed) return "var(--ink-2)";
   if (severity === "error") return "var(--error)";
   if (severity === "warning") return "var(--review)";
-  return "var(--ink-3)"; // info — muted, not alarming
+  return "var(--ink-2)"; // info — readable, but not alarming (neutral ink, not red/amber)
 }

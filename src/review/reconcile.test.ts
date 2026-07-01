@@ -1,17 +1,27 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { reconcilePacket, type ReconcileDocInput } from "./reconcile.js";
+import { reconcilePacket, yearOverYear, type ReconcileDocInput } from "./reconcile.js";
 import type { W2 } from "@/lib/w2-schema";
 
-// Minimal doc builder — reconcile only reads SSN/name/address + boxes 1 & 2,
-// so we construct just those fields and cast to W2.
+// Minimal doc builder — reconcile reads SSN/name/address, employer, boxes 1 & 2,
+// and tax year, so we construct just those and cast to W2.
 function doc(
   id: string,
-  o: { ssn?: string | null; name?: string | null; address?: string | null; box1?: number | null; box2?: number | null },
+  o: {
+    ssn?: string | null;
+    name?: string | null;
+    address?: string | null;
+    employer?: string | null;
+    box1?: number | null;
+    box2?: number | null;
+    year?: number | null;
+  },
 ): ReconcileDocInput {
   const tf = (value: unknown) => ({ present: value != null, value: value ?? null, raw: null, source: null });
   const w2 = {
+    taxYear: tf(o.year),
     employee: { ssn: tf(o.ssn), name: tf(o.name), address: tf(o.address) },
+    employer: { name: tf(o.employer) },
     box1_wages: tf(o.box1),
     box2_fedWithholding: tf(o.box2),
   } as unknown as W2;
@@ -37,6 +47,35 @@ test("different SSNs in one packet flags a wrong-client warning", () => {
   const iss = r.crossDocIssues.find((i) => i.code === "PACKET_MULTIPLE_SSNS");
   assert.ok(iss, "expected PACKET_MULTIPLE_SSNS to fire");
   assert.equal(iss.severity, "warning");
+});
+
+test("year-over-year: a big wage jump for the same SSN is flagged", () => {
+  const r = yearOverYear([
+    doc("d24", { ssn: "111-22-3333", name: "Marcus Halloran", box1: 60000, box2: 7000, year: 2024 }),
+    doc("d25", { ssn: "111223333", name: "Marcus Halloran", box1: 120000, box2: 14000, year: 2025 }),
+  ]);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].prior.year, 2024);
+  assert.equal(r[0].current.year, 2025);
+  assert.equal(r[0].wageDeltaPct, 100);
+  assert.ok(r[0].notes.some((n) => n.severity === "warning" && /wages changed/i.test(n.message)));
+});
+
+test("year-over-year: stable wages + same employer → no warnings", () => {
+  const r = yearOverYear([
+    doc("d24", { ssn: "111-22-3333", name: "Marcus", employer: "Birchwood Labs", box1: 80000, box2: 9600, year: 2024 }),
+    doc("d25", { ssn: "111223333", name: "Marcus", employer: "Birchwood Labs", box1: 82000, box2: 9800, year: 2025 }),
+  ]);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].notes.filter((n) => n.severity === "warning").length, 0);
+});
+
+test("year-over-year: an employer change is noted", () => {
+  const r = yearOverYear([
+    doc("d24", { ssn: "111-22-3333", name: "Marcus", employer: "Acme Co", box1: 80000, box2: 9600, year: 2024 }),
+    doc("d25", { ssn: "111223333", name: "Marcus", employer: "Birchwood Labs", box1: 82000, box2: 9800, year: 2025 }),
+  ]);
+  assert.ok(r[0].notes.some((n) => /employer changed/i.test(n.message)));
 });
 
 test("consistent packet has no cross-doc issues and rolls up totals", () => {

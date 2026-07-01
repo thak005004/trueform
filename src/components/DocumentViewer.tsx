@@ -1,10 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useDocument } from "@/state/document-context";
 import { IntroScene } from "./IntroScene";
 import { PageStack } from "./review/PageStack";
 import { ReviewLayout } from "./review/ReviewLayout";
-import { Spinner } from "./packet/Dashboard";
 
 /**
  * Top-level switch for the main pane:
@@ -43,12 +43,7 @@ export function DocumentViewer() {
 
   return (
     <div className="h-full overflow-auto bg-paper">
-      {extractStatus === "extracting" && (
-        <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-line bg-surface px-4 py-2 text-sm text-ink-2">
-          <Spinner />
-          Extracting and validating…
-        </div>
-      )}
+      {extractStatus === "extracting" && <ExtractProgress />}
       {extractStatus === "error" && (
         <div className="px-4 pt-4">
           <div className="mx-auto flex max-w-3xl items-center gap-3 rounded-card border border-error/30 bg-error-bg px-4 py-3 text-sm text-error">
@@ -72,6 +67,57 @@ function Centered({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-full items-center justify-center bg-paper p-6">
       {children}
+    </div>
+  );
+}
+
+/**
+ * Staged progress shown while a document extracts — reveals the real pipeline
+ * order instead of a dead spinner. Rendering is done by now; the request does a
+ * vision read and then the server validates the tax math, so we advance from
+ * "Reading" to "Checking the tax math" partway through the call. (The independent
+ * second read runs later, in the review, with its own indicator there.)
+ */
+function ExtractProgress() {
+  // Advance from the vision read to the math check partway through the request.
+  const [phase, setPhase] = useState<0 | 1>(0);
+  useEffect(() => {
+    const t = setTimeout(() => setPhase(1), 11000);
+    return () => clearTimeout(t);
+  }, []);
+
+  const STEPS = [
+    { label: "Rendered", state: "done" as const },
+    { label: "Reading the form", state: phase >= 1 ? ("done" as const) : ("active" as const) },
+    { label: "Checking the tax math", state: phase >= 1 ? ("active" as const) : ("pending" as const) },
+  ];
+  const color = (s: string) =>
+    s === "done" ? "var(--verified)" : s === "active" ? "var(--accent)" : "var(--ink-3)";
+
+  return (
+    <div className="sticky top-0 z-10 border-b border-line bg-surface px-4 py-4">
+      <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-2 gap-y-2 text-sm sm:text-[15px]">
+        {STEPS.map((s, i) => (
+          <div key={s.label} className="flex items-center gap-2">
+            {s.state === "active" ? (
+              <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" style={{ color: color(s.state) }} aria-hidden>
+                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+              </svg>
+            ) : s.state === "done" ? (
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={color(s.state)} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="m5 12 5 5L20 7" />
+              </svg>
+            ) : (
+              <span className="h-2 w-2 rounded-full" style={{ background: color(s.state) }} />
+            )}
+            <span className={s.state === "active" ? "font-medium" : ""} style={{ color: color(s.state) }}>
+              {s.label}
+            </span>
+            {i < STEPS.length - 1 && <span className="mx-1 hidden h-px w-8 bg-line sm:block sm:w-12" />}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

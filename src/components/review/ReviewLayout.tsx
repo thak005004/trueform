@@ -6,6 +6,7 @@ import { ReviewProvider, useReview } from "@/review/review-context";
 import { getByPath } from "@/review/fields";
 import { PageStack, type Highlight } from "./PageStack";
 import { ReviewPanel } from "./ReviewPanel";
+import { CommandPalette } from "./CommandPalette";
 
 /**
  * The two-pane review experience for the ACTIVE packet document. Left =
@@ -46,6 +47,7 @@ function ReviewLayoutInner() {
       <div className="flex min-h-0 flex-1 flex-col overflow-auto border-t border-line bg-surface lg:h-full lg:w-[45%] lg:flex-none lg:border-t-0 lg:border-l">
         <ReviewPanel />
       </div>
+      <CommandPalette />
     </div>
   );
 }

@@ -102,3 +102,10 @@ body {
     animation: none;
   }
 }
+
+/* Print: clean margins for the client cover sheet (the app is print:hidden). */
+@media print {
+  @page {
+    margin: 0.6in;
+  }
+}

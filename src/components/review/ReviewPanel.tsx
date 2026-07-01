@@ -21,6 +21,7 @@ export function ReviewPanel() {
     selected,
     effectiveStatus,
     crossReadStatus,
+    crossReadConfirmed,
     select,
     focusPath,
     startEdit,
@@ -57,7 +58,26 @@ export function ReviewPanel() {
     return { errors: e, reviews: w, verified: confirmed.size, ready: e === 0 && w === 0 };
   }, [orderedPaths, effectiveStatus, confirmed]);
 
+  // Verification meter: bucket every field by its strongest trust signal.
+  const meter = useMemo(() => {
+    let human = 0; // confirmed by the preparer
+    let second = 0; // independent second read agreed
+    let clean = 0; // extracted, unflagged, no positive signal yet
+    let review = 0;
+    let error = 0;
+    for (const p of orderedPaths) {
+      const s = effectiveStatus(p);
+      if (s === "error") error++;
+      else if (s === "review") review++;
+      else if (s === "verified") human++;
+      else if (crossReadConfirmed(p)) second++;
+      else clean++;
+    }
+    return { human, second, clean, review, error, total: orderedPaths.length };
+  }, [orderedPaths, effectiveStatus, crossReadConfirmed]);
+
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.metaKey || e.ctrlKey) return; // let ⌘K (command palette) etc. through
     if ((e.target as HTMLElement).tagName === "INPUT") return; // editing owns its keys
     if (orderedPaths.length === 0) return;
     const idx = selected ? orderedPaths.indexOf(selected) : -1;
@@ -110,7 +130,7 @@ export function ReviewPanel() {
   }
 
   return (
-    <div onKeyDown={onKeyDown} className="flex h-full flex-col">
+    <div onKeyDown={onKeyDown}>
       <SummaryBar
         errors={errors}
         reviews={reviews}
@@ -119,12 +139,13 @@ export function ReviewPanel() {
         taxYear={validation.resolvedTaxYear}
         taxYearExact={validation.taxYearExact}
         crossChecking={crossReadStatus === "running"}
+        meter={meter}
       />
 
-      <div className="flex-1">
+      <div>
         {groups.map((g) => (
           <section key={g.title} className="border-b border-line px-3 py-3 last:border-b-0">
-            <h3 className="mb-1.5 px-1 text-xs font-medium text-ink-3">{g.title}</h3>
+            <h3 className="mb-1.5 px-1 text-sm font-semibold text-ink-2">{g.title}</h3>
             <div className="flex flex-col">
               {g.fields.map((f: FieldDef) => (
                 <FieldRow key={f.path} field={f} />
@@ -139,6 +160,15 @@ export function ReviewPanel() {
   );
 }
 
+interface MeterData {
+  human: number;
+  second: number;
+  clean: number;
+  review: number;
+  error: number;
+  total: number;
+}
+
 function SummaryBar({
   errors,
   reviews,
@@ -147,6 +177,7 @@ function SummaryBar({
   taxYear,
   taxYearExact,
   crossChecking,
+  meter,
 }: {
   errors: number;
   reviews: number;
@@ -155,36 +186,39 @@ function SummaryBar({
   taxYear: number;
   taxYearExact: boolean;
   crossChecking: boolean;
+  meter: MeterData;
 }) {
   return (
-    <div className="sticky top-0 z-10 border-b border-line bg-surface px-4 py-3">
-      <div className="figure flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+    <div className="sticky top-0 z-10 border-b border-line bg-surface px-4 py-4">
+      <div className="figure flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
         <span className="text-error">{errors} errors</span>
         <span className="text-review">{reviews} need review</span>
         <span className="text-verified">{verified} verified</span>
-        <span className="ml-auto text-ink-3">
+        <span className="ml-auto text-ink-2">
           {crossChecking ? "second read…" : `tax year ${taxYear}${taxYearExact ? "" : " (fallback)"}`}
         </span>
       </div>
+
+      <VerificationMeter m={meter} />
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         {ready ? (
           <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium"
             style={{ background: "var(--verified-bg)", color: "var(--verified)" }}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="m5 12 5 5L20 7" />
             </svg>
             Ready to export
           </span>
         ) : (
-          <span className="text-xs text-ink-3">Resolve flags to finish</span>
+          <span className="text-sm text-ink-3">Resolve flags to finish</span>
         )}
         <ExportButtons emphasized={ready} />
       </div>
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <span className="text-[10px] text-ink-3">
+        <span className="text-xs text-ink-2">
           Box-keyed structured output for downstream tax software
         </span>
         <KeyboardLegend />
@@ -193,7 +227,38 @@ function SummaryBar({
   );
 }
 
+/** A trust readout: every field bucketed by its strongest observable signal. */
+function VerificationMeter({ m }: { m: MeterData }) {
+  if (m.total === 0) return null;
+  const verified = m.human + m.second;
+  const segs = [
+    { n: m.human, c: "var(--verified)" },
+    { n: m.second, c: "color-mix(in oklab, var(--verified) 45%, var(--surface))" },
+    { n: m.clean, c: "var(--line)" },
+    { n: m.review, c: "var(--review)" },
+    { n: m.error, c: "var(--error)" },
+  ];
+  const attention = m.error + m.review;
+  return (
+    <div className="mt-3">
+      <div className="flex h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--line)" }}>
+        {segs.map((s, i) =>
+          s.n > 0 ? <div key={i} style={{ width: `${(s.n / m.total) * 100}%`, background: s.c }} /> : null,
+        )}
+      </div>
+      <div className="mt-1.5 text-xs text-ink-2">
+        <span className="font-semibold" style={{ color: "var(--verified)" }}>
+          {verified}
+        </span>{" "}
+        of {m.total} fields verified
+        {attention > 0 && <span className="text-ink-3"> · {attention} need attention</span>}
+      </div>
+    </div>
+  );
+}
+
 const SHORTCUTS: [string, string][] = [
+  ["⌘K", "Command palette"],
   ["↑ ↓ / j k", "Move between fields"],
   ["n", "Jump to next flag"],
   ["e / ↵", "Edit field"],

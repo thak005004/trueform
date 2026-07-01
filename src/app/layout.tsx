@@ -17,8 +17,18 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://grove-tax.vercel.app"),
   title: "TrueForm · W-2 Review",
-  description: "Upload a W-2 and get trustworthy, verifiable structured data.",
+  description:
+    "Upload a client's W-2s and get clean, structured data you can check and trust before it goes into your tax software.",
+  openGraph: {
+    title: "TrueForm — W-2 extraction you can trust",
+    description:
+      "Verify and correct extracted W-2 data fast: verifiable tax math, an independent second read, and source-linking.",
+    url: "https://grove-tax.vercel.app",
+    siteName: "TrueForm",
+    type: "website",
+  },
 };
 
 export default function RootLayout({

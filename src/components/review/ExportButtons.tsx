@@ -8,7 +8,7 @@ import { downloadCSV, downloadJSON } from "@/review/export-download";
  * emphasized once all flags are resolved (the "ready to export" moment).
  */
 export function ExportButtons({ emphasized }: { emphasized: boolean }) {
-  const { w2 } = useReview();
+  const { w2, audit } = useReview();
   const cls = `inline-flex items-center gap-1.5 rounded-control px-2.5 py-1.5 text-xs font-medium transition-colors ${
     emphasized
       ? "bg-ink text-white hover:bg-accent"
@@ -17,7 +17,7 @@ export function ExportButtons({ emphasized }: { emphasized: boolean }) {
 
   return (
     <div className="flex items-center gap-2">
-      <button type="button" onClick={() => downloadJSON(w2)} className={cls}>
+      <button type="button" onClick={() => downloadJSON(w2, audit)} className={cls}>
         <DownloadIcon />
         Export JSON
       </button>

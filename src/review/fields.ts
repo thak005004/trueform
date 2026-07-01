@@ -1,4 +1,5 @@
 import type { W2, SourceRef } from "@/lib/w2-schema";
+import { box12Label } from "@/review/box12-codes";
 
 /**
  * Presentation config for the review pane: which W-2 fields to show, how to label
@@ -135,8 +136,8 @@ export function buildGroups(w2: W2): FieldGroup[] {
       title: "Box 12",
       fields: w2.box12.map((e, i) => ({
         path: `box12.${i}.amount`,
-        label: `Code ${e.code.value ?? "—"}`,
-        box: "Box 12",
+        label: box12Label(e.code.value) ?? `Code ${e.code.value ?? "—"}`,
+        box: e.code.value ? `Box 12 · ${e.code.value}` : "Box 12",
         kind: "money" as const,
       })),
     });
