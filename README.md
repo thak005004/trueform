@@ -70,4 +70,4 @@ No W-2 handy? The homepage has sample forms you can open in one click. Each one 
 
 There is also a two-year packet that shows the year-over-year comparison.
 
-I also ran it on real sample W-2s I didn't make (from ADP, the IRS, and a university payroll office). It read the clean ADP form perfectly. On a busier one it misread the employer's ID number, and the checks caught it.
+I also ran it on real sample W-2s I didn't make (from ADP, the IRS, and a university payroll office). It read the ADP form perfectly. On a busier, messier one it got every dollar amount right but made two smaller mistakes: it misread the employer's ID number, which the checks caught, and it mixed up two of the boxes, which the checks did not. That is the honest result, and it is why the tool is built around checking rather than trusting the read.
