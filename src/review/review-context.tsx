@@ -32,6 +32,7 @@ import {
   type CrossReadResult,
   type FieldDisagreement,
 } from "@/review/cross-read";
+import { isValidBox12Code } from "@/review/box12-codes";
 
 export type { AuditEntry };
 
@@ -79,6 +80,8 @@ interface ReviewContextValue {
   crossReadConfirmed: (path: string) => boolean;
   /** Empirical document-level read confidence from the second read. */
   readConfidence: ReadConfidence;
+  /** A review note when a Box 12 amount carries a non-standard (likely misread) code. */
+  box12CodeIssue: (path: string) => string | null;
 }
 
 const ReviewContext = createContext<ReviewContextValue | null>(null);
@@ -273,6 +276,20 @@ export function ReviewProvider({
     return { level, candidates: candidates.length, confirmed: confirmedN, couldNotRead, unconfirmed };
   }, [crossRead, crossReadStatus, pages, disagreementFor, w2]);
 
+  // A Box 12 amount whose code isn't a real IRS code (A–HH) — the tax math doesn't
+  // check codes, so this catches an extractor misread (e.g. a Box 14 label pulled
+  // into Box 12) that real W-2s actually produced.
+  const box12CodeIssue = useCallback(
+    (path: string): string | null => {
+      const m = /^box12\.(\d+)\.amount$/.exec(path);
+      if (!m || confirmed.has(path)) return null;
+      const code = w2.box12[Number(m[1])]?.code?.value;
+      if (!code || isValidBox12Code(code)) return null;
+      return `"${code}" isn't a standard Box 12 code (A–HH) — likely a misread. Verify against the form.`;
+    },
+    [w2, confirmed],
+  );
+
   const effectiveStatus = useCallback(
     (path: string): FieldStatus => {
       if (confirmed.has(path)) return "verified";
@@ -280,9 +297,10 @@ export function ReviewProvider({
       if (status === "error") return "error";
       if (status === "review") return "review";
       if (disagreementFor(path)) return "review";
+      if (box12CodeIssue(path)) return "review";
       return "neutral";
     },
-    [confirmed, validation, disagreementFor],
+    [confirmed, validation, disagreementFor, box12CodeIssue],
   );
 
   return (
@@ -308,6 +326,7 @@ export function ReviewProvider({
         disagreementFor,
         crossReadConfirmed,
         readConfidence,
+        box12CodeIssue,
       }}
     >
       {children}

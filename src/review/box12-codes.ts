@@ -40,3 +40,15 @@ export function box12Label(code: string | null | undefined): string | null {
   if (!code) return null;
   return BOX12_CODES[code.toUpperCase().trim()] ?? null;
 }
+
+/**
+ * Is this a real IRS Box 12 code (A–HH)? A blank code counts as "not populated",
+ * not invalid. A non-empty code that isn't in the official set is a likely misread
+ * — e.g. the extractor pulling a Box 14 label ("14H") into Box 12. Real W-2s
+ * surfaced exactly this, and it isn't caught by the tax math.
+ */
+export function isValidBox12Code(code: string | null | undefined): boolean {
+  const c = code?.trim();
+  if (!c) return true; // empty ≠ invalid
+  return Object.prototype.hasOwnProperty.call(BOX12_CODES, c.toUpperCase());
+}

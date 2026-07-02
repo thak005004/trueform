@@ -36,6 +36,7 @@ export function FieldRow({ field }: { field: FieldDef }) {
   const isConfirmed = r.confirmed.has(field.path);
   const edited = r.isEdited(field.path);
   const disagreement = r.disagreementFor(field.path);
+  const box12Issue = r.box12CodeIssue(field.path);
   // Positive signal: an unflagged field the independent second read confirmed.
   const secondReadOk = status === "neutral" && r.crossReadConfirmed(field.path);
   const fix = issues.length ? suggestedFix(issues) : null;
@@ -187,6 +188,27 @@ export function FieldRow({ field }: { field: FieldDef }) {
                 style={{ borderColor: "var(--review)", color: "var(--review)" }}
               >
                 Confirm against document
+              </button>
+            </div>
+          )}
+
+          {/* Box 12 code sanity: a non-standard code is a likely misread the math
+              can't see (surfaced by testing real W-2s). */}
+          {box12Issue && (
+            <div className="mt-1.5 rounded-md px-2 py-1.5" style={{ background: "var(--review-bg)" }}>
+              <p className="text-[11px]" style={{ color: "var(--review)" }}>
+                {box12Issue}
+              </p>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  r.toggleConfirm(field.path);
+                }}
+                className="mt-1.5 rounded-control border px-2 py-0.5 text-[11px] font-medium"
+                style={{ borderColor: "var(--review)", color: "var(--review)" }}
+              >
+                Confirm against form
               </button>
             </div>
           )}
