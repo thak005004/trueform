@@ -34,10 +34,10 @@ export function CoverSheet() {
 
       <div className="mb-4 text-sm">
         <div>
-          <span className="font-semibold">Client:</span> {client?.employee.name.value ?? "—"}
+          <span className="font-semibold">Client:</span> {client?.employee.name.value ?? "-"}
         </div>
         <div>
-          <span className="font-semibold">SSN:</span> {client?.employee.ssn.value ?? "—"}
+          <span className="font-semibold">SSN:</span> {client?.employee.ssn.value ?? "-"}
         </div>
         <div>
           <span className="font-semibold">Forms:</span> {extracted.length} W-2
@@ -63,10 +63,10 @@ export function CoverSheet() {
               s.kind === "done" ? (s.ready ? "Ready" : `${s.errors} err · ${s.reviews} review`) : s.kind;
             return (
               <tr key={d.id} className="border-b border-gray-400">
-                <td className="py-1 pr-2">{w.employer.name.value ?? "—"}</td>
-                <td className="py-1 pr-2">{w.taxYear.value ?? "—"}</td>
-                <td className="py-1 pr-2 text-right">{w.box1_wages.value != null ? usd(w.box1_wages.value) : "—"}</td>
-                <td className="py-1 pr-2 text-right">{w.box2_fedWithholding.value != null ? usd(w.box2_fedWithholding.value) : "—"}</td>
+                <td className="py-1 pr-2">{w.employer.name.value ?? "-"}</td>
+                <td className="py-1 pr-2">{w.taxYear.value ?? "-"}</td>
+                <td className="py-1 pr-2 text-right">{w.box1_wages.value != null ? usd(w.box1_wages.value) : "-"}</td>
+                <td className="py-1 pr-2 text-right">{w.box2_fedWithholding.value != null ? usd(w.box2_fedWithholding.value) : "-"}</td>
                 <td className="py-1 text-right">{status}</td>
               </tr>
             );

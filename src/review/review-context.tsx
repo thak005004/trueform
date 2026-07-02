@@ -285,7 +285,7 @@ export function ReviewProvider({
       if (!m || confirmed.has(path)) return null;
       const code = w2.box12[Number(m[1])]?.code?.value;
       if (!code || isValidBox12Code(code)) return null;
-      return `"${code}" isn't a standard Box 12 code (A–HH) — likely a misread. Verify against the form.`;
+      return `"${code}" isn't a standard Box 12 code (A to HH), so it's likely a misread. Verify against the form.`;
     },
     [w2, confirmed],
   );

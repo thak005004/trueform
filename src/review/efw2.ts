@@ -132,7 +132,7 @@ export interface FieldMapRow {
 }
 
 const usd = (v: number | null | undefined) =>
-  v == null ? "—" : v.toLocaleString("en-US", { style: "currency", currency: "USD" });
+  v == null ? "-" : v.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
 /** Plain-English mapping of each populated box to how a 1040 preparer consumes it. */
 export function fieldMap(w2: W2): FieldMapRow[] {

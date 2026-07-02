@@ -50,8 +50,8 @@ export function ReadConfidenceBanner() {
           {c.level === "low" ? (
             <p className="text-[13px] leading-snug text-review">
               <span className="font-semibold">Low-confidence scan.</span> The independent second read
-              verified only {c.confirmed} of {c.candidates} key fields — likely a low-resolution or noisy
-              image. Double-check the <span className="font-medium">text fields (name, address)</span>,
+              verified only {c.confirmed} of {c.candidates} key fields. Likely a low-resolution or noisy
+              image, so double-check the <span className="font-medium">text fields (name, address)</span>,
               which the tax math can&rsquo;t guard.
             </p>
           ) : (

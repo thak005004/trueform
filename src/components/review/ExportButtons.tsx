@@ -29,7 +29,7 @@ export function ExportButtons({ emphasized }: { emphasized: boolean }) {
         type="button"
         onClick={() => downloadEFW2(w2)}
         className={cls}
-        title="SSA electronic-filing record (RW/RS) — the layout tax software / the SSA consume"
+        title="SSA electronic-filing record (RW/RS): the layout tax software and the SSA consume"
       >
         <DownloadIcon />
         EFW2

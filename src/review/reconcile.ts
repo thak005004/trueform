@@ -78,7 +78,7 @@ export function reconcilePacket(docs: ReconcileDocInput[]): ReconcileResult {
       issues.push({
         severity: "error",
         code: "SSN_NAME_MISMATCH",
-        message: `SSN ending ${last4} appears with different employee names (${names.join(" vs ")}). One SSN should map to one person — check for a misread or a wrong document.`,
+        message: `SSN ending ${last4} appears with different employee names (${names.join(" vs ")}). One SSN should map to one person, so check for a misread or a wrong document.`,
         docIds: group.map((d) => d.id),
       });
     }
@@ -88,7 +88,7 @@ export function reconcilePacket(docs: ReconcileDocInput[]): ReconcileResult {
       issues.push({
         severity: "warning",
         code: "SSN_ADDRESS_MISMATCH",
-        message: `SSN ending ${last4} appears with different addresses — confirm these are the same person.`,
+        message: `SSN ending ${last4} appears with different addresses. Confirm these are the same person.`,
         docIds: group.map((d) => d.id),
       });
     }
@@ -100,7 +100,7 @@ export function reconcilePacket(docs: ReconcileDocInput[]): ReconcileResult {
     issues.push({
       severity: "warning",
       code: "PACKET_MULTIPLE_SSNS",
-      message: `This packet contains W-2s for ${distinctSsns.length} different SSNs — confirm they all belong to the same client.`,
+      message: `This packet contains W-2s for ${distinctSsns.length} different SSNs. Confirm they all belong to the same client.`,
       docIds: docs.filter((d) => ssnDigits(d.w2)).map((d) => d.id),
     });
   }
@@ -179,7 +179,7 @@ export function yearOverYear(docs: ReconcileDocInput[]): YearOverYear[] {
     if (wageDeltaPct != null && Math.abs(wageDeltaPct) >= WAGE_CHANGE_PCT) {
       notes.push({
         severity: "warning",
-        message: `Wages changed more than ${WAGE_CHANGE_PCT}% year over year — confirm it's expected, not a misread.`,
+        message: `Wages changed more than ${WAGE_CHANGE_PCT}% year over year. Confirm it's expected, not a misread.`,
       });
     }
     const normEmp = (s: string) => s.trim().toUpperCase().replace(/\s+/g, " ");
@@ -191,7 +191,7 @@ export function yearOverYear(docs: ReconcileDocInput[]): YearOverYear[] {
     if (pRate != null && cRate != null && Math.abs(cRate - pRate) >= WITHHOLDING_RATE_SHIFT) {
       notes.push({
         severity: "warning",
-        message: `Federal withholding rate moved from ${Math.round(pRate * 100)}% to ${Math.round(cRate * 100)}% — worth a look.`,
+        message: `Federal withholding rate moved from ${Math.round(pRate * 100)}% to ${Math.round(cRate * 100)}%. Worth a look.`,
       });
     }
 

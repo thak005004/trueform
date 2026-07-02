@@ -85,7 +85,7 @@ function Reconciliation({
         {issues.length === 0 ? (
           <div className="flex items-center gap-2 px-1 py-1.5 text-sm" style={{ color: "var(--verified)" }}>
             <CheckIcon />
-            All documents reconcile — consistent identity, no cross-form conflicts.
+            All documents reconcile. Consistent identity, no cross-form conflicts.
           </div>
         ) : (
           <ul className="flex flex-col gap-2">
@@ -141,7 +141,7 @@ function YearOverYearPanel({
           <div key={i} className="px-4 py-3">
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-sm font-medium text-ink">
-                {e.employeeName ?? "—"}{" "}
+                {e.employeeName ?? "-"}{" "}
                 <span className="figure text-xs text-ink-3">· SSN ••••{e.ssnLast4}</span>
               </span>
               <span className="figure text-xs text-ink-2">
@@ -279,16 +279,16 @@ function DocumentRow({
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
             <span className="truncate text-sm font-medium text-ink">
-              {w2?.employee.name.value ?? "—"}
+              {w2?.employee.name.value ?? "-"}
             </span>
             <span className="figure truncate text-[11px] text-ink-3">{doc.fileName}</span>
           </div>
           <div className="truncate text-xs text-ink-2">
-            {w2?.employer.name.value ?? "Employer —"} · {w2?.taxYear.value ?? "—"}
+            {w2?.employer.name.value ?? "Employer"} · {w2?.taxYear.value ?? "-"}
           </div>
         </div>
         <div className="figure hidden shrink-0 text-sm text-ink sm:block">
-          {box1 != null ? usd(box1) : "—"}
+          {box1 != null ? usd(box1) : "-"}
         </div>
         <StatusBadge sum={sum} />
         <span aria-hidden className="text-ink-3">→</span>

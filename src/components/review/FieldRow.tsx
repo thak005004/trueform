@@ -80,7 +80,7 @@ export function FieldRow({ field }: { field: FieldDef }) {
               <span
                 className="ml-auto flex shrink-0 cursor-default select-none items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
                 style={{ color: "var(--verified)", background: "var(--verified-bg)" }}
-                title="Confirmed by an independent second read (Tesseract OCR) — informational, not a button"
+                title="Confirmed by an independent second read (Tesseract OCR). Informational, not a button"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="m5 12 5 5L20 7" />
@@ -176,7 +176,7 @@ export function FieldRow({ field }: { field: FieldDef }) {
               style={{ background: "var(--review-bg)" }}
             >
               <p className="text-[11px]" style={{ color: "var(--review)" }}>
-                Second read couldn&rsquo;t confirm this value — check it against the document.
+                Second read couldn&rsquo;t confirm this value. Check it against the document.
               </p>
               <button
                 type="button"
@@ -288,7 +288,7 @@ function ConfirmButton({
       type="button"
       onClick={onClick}
       aria-pressed={confirmed}
-      title={confirmed ? "Confirmed — click to undo" : "Confirm (mark verified)"}
+      title={confirmed ? "Confirmed, click to undo" : "Confirm (mark verified)"}
       className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors"
       style={
         confirmed

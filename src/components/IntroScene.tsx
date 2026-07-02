@@ -16,7 +16,7 @@ const PILLARS = [
   {
     key: "reads",
     title: "Two independent reads",
-    desc: "A separate OCR pass confirms the key numbers — not the model's own say-so.",
+    desc: "A separate OCR pass confirms the key numbers, not the model's own say-so.",
   },
   {
     key: "source",
@@ -30,11 +30,11 @@ const PILLARS = [
 // of the trust layer.
 const SAMPLES = [
   { url: "/samples/w2-clean.pdf", name: "sample-w2-clean.pdf", label: "Clean W-2", note: "Passes every tax-math check", type: "application/pdf" },
-  { url: "/samples/w2-transposed-box4.pdf", name: "sample-box4-error.pdf", label: "Box 4 error", note: "Transposed digit — math catches it", type: "application/pdf" },
-  { url: "/samples/w2-high-earner.pdf", name: "sample-high-earner.pdf", label: "High earner", note: "$250k — Additional Medicare surtax", type: "application/pdf" },
-  { url: "/samples/w2-roth.pdf", name: "sample-roth-401k.pdf", label: "Roth 401(k)", note: "Post-tax — no false deferral flag", type: "application/pdf" },
+  { url: "/samples/w2-transposed-box4.pdf", name: "sample-box4-error.pdf", label: "Box 4 error", note: "Transposed digit the math catches", type: "application/pdf" },
+  { url: "/samples/w2-high-earner.pdf", name: "sample-high-earner.pdf", label: "High earner", note: "$250k, Additional Medicare surtax", type: "application/pdf" },
+  { url: "/samples/w2-roth.pdf", name: "sample-roth-401k.pdf", label: "Roth 401(k)", note: "Post-tax, no false deferral flag", type: "application/pdf" },
   { url: "/samples/w2-multistate.pdf", name: "sample-multistate.pdf", label: "Multi-state", note: "Two state rows (CA + NY)", type: "application/pdf" },
-  { url: "/samples/w2-messy.jpg", name: "sample-messy-scan.jpg", label: "Messy scan", note: "Bad scan — low-confidence banner", type: "image/jpeg" },
+  { url: "/samples/w2-messy.jpg", name: "sample-messy-scan.jpg", label: "Messy scan", note: "Bad scan that trips the low-confidence banner", type: "image/jpeg" },
 ];
 
 /**
@@ -53,7 +53,7 @@ export function IntroScene() {
       const s = parseSession(await file.text());
       restore(s.documents, s.activeId, s.view);
     } catch {
-      alert("Couldn't open that file — it isn't a TrueForm session.");
+      alert("Couldn't open that file. It isn't a TrueForm session.");
     }
   }
 
@@ -67,7 +67,7 @@ export function IntroScene() {
     try {
       loadFile(await fetchSample(url, name, type));
     } catch {
-      alert("Couldn't load that sample — please try uploading a file instead.");
+      alert("Couldn't load that sample. Please try uploading a file instead.");
     }
   }
 
@@ -80,7 +80,7 @@ export function IntroScene() {
       ]);
       loadFiles(files);
     } catch {
-      alert("Couldn't load the sample packet — please try uploading files instead.");
+      alert("Couldn't load the sample packet. Please try uploading files instead.");
     }
   }
 

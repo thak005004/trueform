@@ -43,7 +43,7 @@ const usd = (n: number) =>
 /** Display string for a committed value. Em dash for blank/unreadable. */
 export function formatValue(field: FieldObj, kind: FieldKind): string {
   const v = field?.value;
-  if (v == null || v === "") return "—";
+  if (v == null || v === "") return "-";
   if (kind === "money" && typeof v === "number") return usd(v);
   return String(v);
 }
@@ -136,7 +136,7 @@ export function buildGroups(w2: W2): FieldGroup[] {
       title: "Box 12",
       fields: w2.box12.map((e, i) => ({
         path: `box12.${i}.amount`,
-        label: box12Label(e.code.value) ?? `Code ${e.code.value ?? "—"}`,
+        label: box12Label(e.code.value) ?? `Code ${e.code.value ?? "-"}`,
         box: e.code.value ? `Box 12 · ${e.code.value}` : "Box 12",
         kind: "money" as const,
       })),

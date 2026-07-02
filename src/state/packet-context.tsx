@@ -91,9 +91,9 @@ function newId(): string {
 
 /** Calm, recoverable message shown on a failed document row. status=null → network/timeout. */
 function friendlyError(status: number | null): string {
-  if (status === 422) return "Couldn't read this as a W-2 — check the file, or try re-extracting.";
-  if (status === null) return "Couldn't reach the extraction service — check your connection and re-extract.";
-  return "Extraction failed (server error) — try re-extracting.";
+  if (status === 422) return "Couldn't read this as a W-2. Check the file, or try re-extracting.";
+  if (status === null) return "Couldn't reach the extraction service. Check your connection and re-extract.";
+  return "Extraction failed (server error). Try re-extracting.";
 }
 
 function blankDocument(file: File): PacketDocument {
