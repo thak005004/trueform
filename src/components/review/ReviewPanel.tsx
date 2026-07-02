@@ -5,6 +5,7 @@ import { buildGroups, type FieldDef } from "@/review/fields";
 import { useReview, type FieldStatus } from "@/review/review-context";
 import { FieldRow } from "./FieldRow";
 import { ExportButtons } from "./ExportButtons";
+import { ReadConfidenceBanner } from "./ReadConfidenceBanner";
 
 const PRIORITY: Record<FieldStatus, number> = {
   error: 0,
@@ -141,6 +142,8 @@ export function ReviewPanel() {
         crossChecking={crossReadStatus === "running"}
         meter={meter}
       />
+
+      <ReadConfidenceBanner />
 
       <div>
         {groups.map((g) => (

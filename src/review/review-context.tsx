@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -27,6 +28,7 @@ import {
 import {
   runCrossRead,
   valuePresent,
+  CROSS_READ_FIELDS,
   type CrossReadResult,
   type FieldDisagreement,
 } from "@/review/cross-read";
@@ -35,6 +37,20 @@ export type { AuditEntry };
 
 /** Status a field row paints with: validation-derived, or human-verified. */
 export type FieldStatus = "error" | "review" | "verified" | "neutral";
+
+/**
+ * Document-level read confidence, derived EMPIRICALLY from the independent second
+ * read — not from the model's self-reported confidence. "low" means the second
+ * reader struggled to read the key fields at all (a noisy/low-res scan), which is
+ * also a cue to double-check the text fields the tax math can't guard.
+ */
+export interface ReadConfidence {
+  level: "clear" | "check" | "low";
+  candidates: number; // cross-read fields we attempted to verify
+  confirmed: number; // ...the second read agreed on
+  couldNotRead: number; // ...it couldn't get a readable signal for (quality proxy)
+  unconfirmed: string[]; // ...it read but couldn't confirm (active, post-edit)
+}
 
 interface ReviewContextValue {
   w2: W2;
@@ -61,6 +77,8 @@ interface ReviewContextValue {
   disagreementFor: (path: string) => FieldDisagreement | null;
   /** True when the second read positively confirmed this (still-unedited) field. */
   crossReadConfirmed: (path: string) => boolean;
+  /** Empirical document-level read confidence from the second read. */
+  readConfidence: ReadConfidence;
 }
 
 const ReviewContext = createContext<ReviewContextValue | null>(null);
@@ -227,6 +245,34 @@ export function ReviewProvider({
     [crossRead, isEdited],
   );
 
+  // Empirical read confidence: how did the independent second read fare on the
+  // key fields? Confirmed nothing, or couldn't even read half of them → "low".
+  const readConfidence = useMemo<ReadConfidence>(() => {
+    if (crossReadStatus !== "done" || !crossRead) {
+      return { level: "clear", candidates: 0, confirmed: 0, couldNotRead: 0, unconfirmed: [] };
+    }
+    // Candidate = a cross-read field present with a locatable source. We read the
+    // current w2 (state) rather than the original ref — edits preserve each field's
+    // source.bbox, so the candidate SET is identical, and it keeps this out of
+    // "ref access during render."
+    const candidates = CROSS_READ_FIELDS.filter(({ path }) => {
+      const f = getByPath(w2, path);
+      return f && f.value != null && f.present && f.source?.bbox && pages[f.source.page];
+    }).map((c) => c.path);
+
+    const confirmedN = candidates.filter((p) => crossRead.confirmed.includes(p)).length;
+    const rawDisagree = candidates.filter((p) => crossRead.disagreements[p]).length;
+    const couldNotRead = candidates.length - confirmedN - rawDisagree;
+    const unconfirmed = candidates.filter((p) => disagreementFor(p) != null);
+
+    let level: ReadConfidence["level"] = "clear";
+    if (candidates.length > 0) {
+      if (confirmedN === 0 || couldNotRead >= Math.ceil(candidates.length / 2)) level = "low";
+      else if (unconfirmed.length > 0) level = "check";
+    }
+    return { level, candidates: candidates.length, confirmed: confirmedN, couldNotRead, unconfirmed };
+  }, [crossRead, crossReadStatus, pages, disagreementFor, w2]);
+
   const effectiveStatus = useCallback(
     (path: string): FieldStatus => {
       if (confirmed.has(path)) return "verified";
@@ -261,6 +307,7 @@ export function ReviewProvider({
         crossReadStatus,
         disagreementFor,
         crossReadConfirmed,
+        readConfidence,
       }}
     >
       {children}
