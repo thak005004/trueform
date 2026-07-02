@@ -2,43 +2,45 @@
 
 **Live:** https://trueform-w2.vercel.app · **Repo:** https://github.com/thak005004/trueform
 
-Upload a client's W-2s and get clean, structured data you can check and fix before it goes into your tax software.
-
-Built for the Grove take-home by Aditi Thakur.
-
----
+A W-2 is the form that reports how much someone earned in a year and how much tax was taken out. TrueForm reads a W-2, turns it into clean data, and double-checks that data so a tax preparer can trust it before typing it into tax software.
 
 ## The idea
 
-Any vision model can pull the numbers off a W-2. The harder question is whether you can trust them. The model doesn't know when it's wrong, and it reports the same confidence whether it read a number right or not.
+An AI vision model can read the numbers off a W-2 in seconds. The problem is it sometimes reads one wrong, and it never tells you which one. It sounds just as sure when it's wrong as when it's right.
 
-So TrueForm verifies the data against things that don't depend on the model's opinion: whether the tax math on the form actually works out, whether a separate second read of the document agrees, and whether a client's forms are consistent with each other and with last year. Anything that doesn't check out gets flagged. The goal is to let a preparer get through a stack of forms without re-reading every box by hand.
+So TrueForm doesn't take the model's word for it. It checks the numbers against things that don't depend on the model being right:
+
+- Does the tax math on the form actually add up?
+- Does a second, separate read of the document agree?
+- Do the client's forms make sense together, and next to last year's?
+
+Anything that doesn't check out gets flagged for a person to look at. The point is to let a preparer clear a stack of forms quickly by checking only the few things that really need it, instead of re-reading every box by hand.
 
 ## What it does
 
-**Reads any W-2.** A clean PDF, a scan, or a photo off someone's phone. It pulls every box into structured data using a fast vision model.
+**Reads any W-2.** A clean PDF, a scan, or a photo from a phone. It pulls every box into structured data.
 
-**Checks the math.** A W-2 has to be internally consistent, and TrueForm knows the rules. Social Security tax should be 6.2% of the right wages. Medicare tax should be 1.45%, plus the extra 0.9% high earners owe over $200k. Social Security wages can't go past the year's cap. If a number doesn't add up it gets flagged, even when the model was sure it read it right.
+**Checks the tax math.** The numbers on a W-2 have to line up in set ways. For example, the Social Security tax box should equal 6.2% of the Social Security wages box. TrueForm knows these rules and flags anything that doesn't add up, even when the model was sure it read the number right.
 
-**Knows what not to flag.** Box 1 and Box 5 often differ on a real W-2, usually because of pre-tax 401(k) money. TrueForm recognizes that and confirms it's fine instead of raising a false alarm. A tool that flags normal forms just teaches you to ignore it.
+**Knows what's normal.** Some boxes are supposed to differ. If you put money into a 401(k), your taxable pay comes out lower than your total pay, and that is correct. TrueForm recognizes cases like this and stays quiet instead of raising a false alarm. A tool that flags normal forms just trains you to ignore it.
 
-**Reads the high-value fields twice.** For the identity IDs (SSN, EIN) and the headline dollar boxes, TrueForm runs a separate OCR pass over that spot on the document and checks that the model's value actually appears there. When the second read can't confirm it, the field is flagged to check against the source. Two independent reads disagreeing is real, observable uncertainty, not a model just saying it's confident.
+**Reads the important fields twice.** For the ID numbers (Social Security number, employer ID) and the main dollar amounts, TrueForm does a second, separate read of that exact spot on the page and checks that the model's number actually appears there. If the two reads disagree, it flags the field. Two readers disagreeing is real evidence of a problem, unlike a model just saying it feels confident.
 
-**Warns when a scan is too rough.** If that second read struggles to confirm the key fields, TrueForm says so up front and points you at the text fields (name, address) that the tax math can't guard, which is exactly where a bad scan tends to go wrong quietly.
+**Warns when a scan is bad.** If that second read struggles to make out the key fields, TrueForm tells you the image is rough and points you at the name and address, which the math can't check and which are the first things to go wrong on a blurry scan.
 
-**Compares against last year.** Load two years for the same person and it flags a large wage swing, a jump in the withholding rate, or a changed employer. Those are the errors a single form's math can't see.
+**Compares to last year.** Load two years for the same person and it flags a big jump in pay, a change in how much tax was withheld, or a different employer. Those are mistakes a single form can't reveal on its own.
 
-**Handles a whole client, not one form.** Add several W-2s as one packet and it adds up the totals and checks them against each other. It catches the same Social Security number showing up under two different names, which usually means a form landed in the wrong client's folder. You can't see that one form at a time.
+**Handles a whole client at once.** Drop in several W-2s as one packet and it totals them up and checks them against each other. For example, it catches the same Social Security number showing up under two different names, which usually means a form landed in the wrong client's folder.
 
-**Reads Box 12.** It decodes the codes (D is a 401(k) deferral, DD is health coverage, and so on) so you see what they mean, and it flags a code that isn't a real one, which is a sign the model misread it.
+**Explains the codes.** One box on a W-2 (Box 12) uses letter codes, like "D" for a 401(k). TrueForm spells out what each code means, and if it sees a code that isn't a real one, it flags it as a likely misread.
 
-**Shows its work.** Click any field and it highlights where that value came from on the document. Every field is editable, and the flags update the moment you fix something.
+**Shows where every number came from.** Click any field and it highlights the exact spot on the document. You can edit anything, and the checks update instantly.
 
-**Exports clean data.** JSON or CSV organized by box number, an EFW2 record (the SSA's fixed-width e-file layout for the employee and state wage records), and a plain-English map of each box to where it lands on the 1040. It exports your corrections, not the raw read.
+**Exports the data.** As a spreadsheet (CSV), as JSON, in the government's official e-file format for wages, and as a simple guide showing which tax-return line each box feeds into. It exports your corrections, not the raw read.
 
 ## Built with
 
-Next.js and TypeScript, deployed on Vercel. Extraction runs through the Anthropic API on a fast model (Haiku), which I picked after benchmarking: it matched the larger model box for box on my samples at about half the latency, and since the trust comes from the checks rather than the model, using the faster reader is safe. A separate open-source OCR pass (Tesseract) is the independent second reader. PDFs are turned into images in the browser. There's no database. A client's data lives only in your session, survives a page reload, and clears when you close the tab, so sensitive tax information doesn't stick around.
+Next.js and TypeScript, hosted on Vercel. The reading is done by Anthropic's vision model. A separate open-source tool (Tesseract) does the independent second read. PDFs are turned into images right in the browser. There is no database: a client's data stays in your browser tab, survives a refresh, and disappears when you close the tab, so sensitive information doesn't linger anywhere.
 
 ## Run it locally
 
@@ -51,23 +53,21 @@ npm run dev          # http://localhost:3000
 ```
 
 ```bash
-npm test             # math, reconciliation, cross-check, EFW2, and helper tests
+npm test
 npm run typecheck
 ```
 
-## See the trust layer work
+## Try it
 
-No W-2 handy? The landing page has samples you can load in one click. Each one exercises a different check:
+No W-2 handy? The homepage has sample forms you can open in one click. Each one shows off a different check:
 
-- **Clean W-2** passes every check.
-- **Box 4 error** has two digits swapped in the Social Security tax box, and the math catches it.
-- **High earner** is missing the extra Medicare tax over $200k, also caught.
-- **Roth 401(k)** is post-tax, so Box 1 equals Box 5, and TrueForm correctly does not raise a deferral flag.
-- **Multi-state** has two state rows.
-- **Messy scan** is a rough photo that trips the low-confidence warning.
+- **Clean W-2** passes everything.
+- **Box 4 error** has two digits swapped, and the math catches it.
+- **High earner** is missing the extra Medicare tax that kicks in over $200k, also caught.
+- **Roth 401(k)** is a case where two boxes are meant to match, and TrueForm correctly leaves it alone.
+- **Multi-state** is someone who worked in two states.
+- **Messy scan** is a rough photo that trips the low-quality warning.
 
-There's also a two-year packet that shows the prior-year comparison.
+There is also a two-year packet that shows the year-over-year comparison.
 
-I also spot-checked the extractor on real, publicly posted sample W-2s I didn't create (from ADP, the IRS, and a university payroll office). The details are in the writeup, including what it got right and the one field it misread that the checks caught.
-
-A short writeup covering the decisions, the tradeoffs, and how I used AI tools is submitted separately.
+I also ran it on real sample W-2s I didn't make (from ADP, the IRS, and a university payroll office). It read the clean ADP form perfectly. On a busier one it misread the employer's ID number, and the checks caught it.
