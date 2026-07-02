@@ -60,18 +60,18 @@ export function DropZone() {
       >
         <span
           className={`flex h-12 w-12 items-center justify-center rounded-full border transition-colors ${
-            dragging ? "border-accent text-accent" : "border-line text-ink-3"
+            dragging ? "border-accent text-accent" : "border-line text-ink-2"
           }`}
         >
           <UploadIcon />
         </span>
-        <span className="text-base font-medium text-ink">
+        <span className="text-xl font-semibold text-ink">
           {dragging ? "Drop to upload" : "Drop your W-2 here"}
         </span>
-        <span className="text-sm text-ink-2">
+        <span className="text-base text-ink-2">
           Drag and drop, or click to choose a file
         </span>
-        <span className="figure text-xs tracking-wide text-ink-3">
+        <span className="figure text-sm tracking-wide text-ink-2">
           PDF · PNG · JPEG
         </span>
       </button>
