@@ -33,7 +33,7 @@ flowchart TD
 
     style UNTRUSTED fill:#f7ece1,stroke:#B0632B,color:#14202D
     style DET fill:#e3eef0,stroke:#0F717C,color:#14202D
-    linkStyle 3 stroke:#B0632B,stroke-width:2px
+    linkStyle 4 stroke:#B0632B,stroke-width:3px
     linkStyle 5 stroke:#0F717C,stroke-dasharray:4 3
 ```
 
