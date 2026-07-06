@@ -1,35 +1,34 @@
-# TrueForm — Architecture & Data Flow
+# TrueForm: Architecture & Data Flow
 
-Five stages, one idea: **the model's read is the only untrusted input.** Everything
-below the trust boundary is deterministic machinery for deciding what a human must
-look at. Follow the data down the diagram — it starts as a file, becomes an untrusted
-read, passes through checks a person can verify, and only the corrected version leaves.
+The whole tool rests on one idea: **the AI's reading of the form is the only thing we do not trust.** Everything after it is plain, checkable logic whose job is to decide which fields a person actually needs to look at.
+
+Think of it as a careful assistant. The AI reads the W-2 fast, then a set of simple rules double-check that reading and flag only the few fields that need a human. Read the diagram top to bottom and follow the data: it starts as a file, becomes an untrusted reading, passes through checks a person can verify, and only the corrected version leaves.
 
 ## The pipeline
 
 ```mermaid
 flowchart TD
-    F["📄 PDF / phone photo"]
+    F["📄 File (PDF or photo)"]
 
-    subgraph UNTRUSTED["🟠 UNTRUSTED · the model's read"]
+    subgraph UNTRUSTED["🟠 UNTRUSTED · the AI's reading"]
         direction TB
-        R["<b>1 · RENDER</b><br/><i>browser · no network</i><br/>pdf.js @ 2–3× DPI"]
-        E["<b>2 · EXTRACT</b><br/><i>server · Node</i><br/>Claude · forced tool use<br/>(the Zod schema <i>is</i> the tool)"]
-        R -->|"page images · ×2 rasters"| E
+        R["<b>1 · RENDER</b><br/>browser<br/>makes sharp page images"]
+        E["<b>2 · EXTRACT</b><br/>server<br/>the AI reads every box"]
+        R -->|"page images"| E
     end
 
-    subgraph DET["🟢 DETERMINISTIC · checks a human can verify"]
+    subgraph DET["🟢 DETERMINISTIC · checks a person can verify"]
         direction TB
-        V["<b>3 · VERIFY</b><br/><i>4 independent checks</i><br/>every flag from observable data,<br/>never a confidence score"]
-        RV["<b>4 · REVIEW</b><br/><i>browser · human triage</i><br/>flags float up · human confirm wins"]
-        X["<b>5 · EXPORT</b><br/><i>client-side only</i><br/>CSV · JSON+audit · EFW2 · 1040 map"]
-        V -->|"flagged fields (error / review / ok)"| RV
-        RV -->|"corrected + confirmed W-2"| X
+        V["<b>3 · VERIFY</b><br/>4 checks<br/>flag anything that looks wrong"]
+        RV["<b>4 · REVIEW</b><br/>browser<br/>human fixes and confirms"]
+        X["<b>5 · EXPORT</b><br/>browser<br/>send the corrected data out"]
+        V -->|"flagged fields"| RV
+        RV -->|"corrected data"| X
     end
 
     F --> R
-    E ==>|"typed W-2 — the ONLY fallible thing"| V
-    RV -.->|"edit → POST /api/validate → re-flag"| V
+    E ==>|"typed W-2 (only step that can be wrong)"| V
+    RV -.->|"an edit re-runs the checks"| V
 
     style UNTRUSTED fill:#f7ece1,stroke:#B0632B,color:#14202D
     style DET fill:#e3eef0,stroke:#0F717C,color:#14202D
@@ -37,74 +36,51 @@ flowchart TD
     linkStyle 5 stroke:#0F717C,stroke-dasharray:4 3
 ```
 
-> The bold arrow crossing from **Extract → Verify** is the **trust boundary**:
-> everything above it is fallible; everything below is deterministic. The dashed
-> arrow from **Review → Verify** is the edit loop — the client can't recompute the
-> tax math itself, so an edit posts back to the *same* server engine.
+> The thick arrow crossing the middle is the **trust boundary**. Above it, the AI could be wrong. Below it, every result comes from fixed rules a person can check for themselves. The dashed arrow means that whenever a human edits a value, the checks run again automatically.
 
-### ASCII fallback
+### Text version
 
 ```
-        📄 PDF / phone photo
-              │
-  ┌───────────────────────────────── UNTRUSTED · the model's read ┐
-  │           ▼                                                    │
-  │  1. RENDER   (browser, no network)   pdf.js @ 2–3× DPI         │
-  │           │  → page images ×2 rasters (crisp PNG + API JPEG)   │
-  │           ▼                                                    │
-  │  2. EXTRACT  (server)  Claude · forced tool use = Zod schema   │
-  └───────────│──────────────────────────────────────────────────┘
-              │  ══► typed W-2  ◄── the ONLY untrusted thing
-  ═══════════ TRUST BOUNDARY ═══════════════════════════════════════
-  ┌───────────│───────────────────── DETERMINISTIC · verifiable ───┐
-  │           ▼                                                    │
-  │  3. VERIFY  (4 independent checks)  a·math b·2nd-read           │
-  │           │                         c·cross-doc d·Box12         │
-  │           │  → flagged fields          ▲                        │
-  │           ▼                            │ re-validate (loop)     │
-  │  4. REVIEW  (browser, human)  edit ────┘  /api/validate         │
-  │           │  → corrected + confirmed W-2                        │
-  │           ▼                                                    │
-  │  5. EXPORT  (client-side only)  CSV · JSON+audit · EFW2 · map   │
-  └──────────────────────────────────────────────────────────────┘
-
-  sessionStorage holds the whole session — survives refresh, gone on
-  tab close. No database.
+File (PDF or photo)
+   |
+   v
+UNTRUSTED  (the AI's reading)
+   1. RENDER    browser    file    ->  sharp page images
+   2. EXTRACT   server     images  ->  typed W-2   (only step that can be wrong)
+   |
+   v     * * *   TRUST BOUNDARY   * * *
+   |
+DETERMINISTIC  (checks a person can verify)
+   3. VERIFY    4 checks   W-2     ->  flagged fields
+   4. REVIEW    browser    human fixes and confirms   (an edit re-runs VERIFY)
+   5. EXPORT    browser    corrected W-2  ->  CSV, JSON, EFW2, tax-return map
 ```
 
-## Stage by stage
+## The five stages
 
-| # | Stage | Runs | What it does |
-|---|-------|------|--------------|
-| 1 | **Render** | browser · no network | pdf.js rasterizes at **2–3× DPI** (72 DPI blurs box text into a smudge the model misreads). Emits `RenderedPage[]` — plus a *second*, downscaled 1568px JPEG for the API, since the vision model shrinks images anyway. |
-| 2 | **Extract** | server (Node) | `POST /api/extract` → Claude with **forced tool use**: the Zod schema is handed over as the tool, and the output is re-checked with `safeParse`. All pages go in one call. Returns a **typed W-2 — the only fallible thing in the system.** |
-| 3 | **Verify** | server + browser | Four checks that fail on independent axes (see below). Every flag comes from observable data, never a model confidence score. |
-| 4 | **Review** | browser · human | Flags float to the top; keyboard triage (`n` = next flag). Editing a field posts back to `/api/validate` (the same server engine) — the client never recomputes the math. A human **confirm** overrides every check. |
-| 5 | **Export** | client-side only | The **corrected draft** — never the raw read — as CSV, JSON (+ audit trail), **EFW2** (the real SSA electronic-filing record layout), and a Box→1040 import map. PII never round-trips the server to be exported. |
+| # | Stage | Runs in | In plain words |
+|---|-------|---------|----------------|
+| 1 | **Render** | browser | Turns the uploaded PDF or photo into sharp page images. It renders at high resolution on purpose, because blurry text is the number one cause of misreads. |
+| 2 | **Extract** | server | The AI reads every box and returns structured data. This is the one step that can be wrong, so nothing after it simply trusts the result. |
+| 3 | **Verify** | server + browser | Four separate checks look for anything that does not add up and flag it (see below). No check relies on the AI feeling sure of itself. |
+| 4 | **Review** | browser | The person sees the flagged fields first, fixes or confirms them, and the checks re-run instantly after every edit. |
+| 5 | **Export** | browser | Sends the corrected data out as CSV, JSON (with an edit history), EFW2 (the official e-file format), and a guide to where each box goes on the tax return. |
 
-## The four verification checks
+## The four checks
 
-The reason this is more than an OCR wrapper: each check catches a different class of
-error, and none of them trusts the model's confidence.
+Each check catches a different kind of mistake, and none of them trusts the AI's confidence.
 
-| Check | Where | Catches |
-|-------|-------|---------|
-| **a · Tax math** | server (`lib/validation.ts`) | Box 4 = 6.2% of (Box 3 + 7); Box 6 = 1.45% of Box 5 **+ 0.9% surtax over $200k**; SS wage-base cap; withholding ≤ wages; EIN/SSN format. Reconciles Box 1 vs 5 against Box 12 deferrals instead of false-flagging normal differences. |
-| **b · Second read** | browser (`review/cross-read.ts`) | An **independent** Tesseract OCR of the money boxes + IDs — a genuinely different engine, so agreement is real evidence. Generous crop + *presence* (not equality) to avoid false alarms. |
-| **c · Cross-document** | pure (`review/reconcile.ts`) | Same SSN under two names (wrong client's form); year-over-year wage/withholding/employer swings. The packet *is* the history — no database needed. |
-| **d · Box 12 sanity** | pure (`review/box12-codes.ts`) | A Box 12 code that isn't a real IRS code (A–HH) — a likely misread the tax math can't see. Added *because testing real W-2s surfaced it.* |
+| Check | Runs in | What it catches |
+|-------|---------|-----------------|
+| **Tax math** | server | The numbers on a W-2 must line up. Box 4 should be 6.2% of Social Security wages; Box 6 should be 1.45% of Medicare wages, plus a 0.9% surtax on pay over $200k. Anything that breaks the arithmetic gets flagged. |
+| **Second reading** | browser | A different, free reader (Tesseract) reads the key money boxes and ID numbers again. If the two readings disagree, that is real evidence of a problem, not just a hunch. |
+| **Across documents** | plain logic | Compares the forms in one client's packet. The same Social Security number under two different names, or a big jump from last year, points to a mix-up or a misread. |
+| **Box 12 codes** | plain logic | Box 12 uses letter codes (A to HH). A code that is not a real one is almost always a misread, and the tax math cannot see it on its own. |
 
-## Design principles (enforced by the file structure)
+## Why it is built this way
 
-- **The model's output is the only untrusted input.** `src/lib` and `src/review`
-  are almost entirely pure functions over the `W2` type — testable, no I/O — which
-  is why the trust logic has unit tests and the React/network code lives at the edges.
-- **One source of truth for the math.** The client physically cannot validate; it
-  must call `/api/validate`, so the number a preparer sees can never diverge from the
-  number the engine computes.
-- **Silence on normal forms is a feature.** Deferral reconciliation, Roth exclusion,
-  and "no readable signal → no flag" all exist so the tool doesn't cry wolf. A tool
-  that flags correct forms just trains you to ignore it.
-- **Every check is human-overridable.** A `confirm` beats every automated flag.
-- **Privacy by architecture.** `sessionStorage` (not `localStorage`, wiped on tab
-  close), a full-res raster that never leaves the browser, and client-side exports.
+- **The AI's reading is the only thing we do not trust.** The checking logic is plain, tested code with no AI in it, which is why it can have unit tests and be relied on.
+- **One source of truth for the math.** The browser cannot do the tax math itself; it always asks the server. So the number a person sees is exactly the number the engine computed, never a second copy that could drift.
+- **Staying quiet on normal forms is a feature.** Many boxes are supposed to differ (a 401(k) makes taxable pay lower than total pay, and that is correct). The tool knows what is normal and does not cry wolf. A tool that flags correct forms just trains people to ignore it.
+- **The person always wins.** A human confirmation overrides every automatic flag.
+- **Privacy by design.** A client's data lives only in the browser tab and is gone when the tab closes. There is no database.
