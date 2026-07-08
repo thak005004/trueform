@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { extractW2, type PageImage } from "@/lib/extraction";
 import { validateW2 } from "@/lib/validation";
+import { detectForms } from "@/review/detect-forms";
 
 // The Anthropic SDK needs the Node runtime (not Edge). Extraction is a vision
 // call over full-page images, so give it headroom beyond the default timeout.
@@ -65,7 +66,17 @@ export async function POST(req: Request) {
 
   // --- Extract + validate (model/transport failure → 422/500) -----------
   try {
-    const outcome = await extractW2(pages);
+    // Run the real extraction and a cheap "how many people are on this page"
+    // scan concurrently, so the scan adds no wall-clock time. The scan is
+    // best-effort: if it fails, extraction still returns and we just skip the
+    // multi-form warning (never let a guardrail take down the core path).
+    const [outcome, formScan] = await Promise.all([
+      extractW2(pages),
+      detectForms(pages).catch((e) => {
+        console.error("Form scan failed (non-fatal):", e);
+        return null;
+      }),
+    ]);
 
     if (!outcome.ok || !outcome.data) {
       // The model didn't produce schema-valid output (no tool call, or zod
@@ -83,7 +94,7 @@ export async function POST(req: Request) {
 
     const extraction = outcome.data;
     const validation = validateW2(extraction.w2);
-    return NextResponse.json({ extraction, validation });
+    return NextResponse.json({ extraction, validation, formScan });
   } catch (e) {
     // Anthropic API error, network failure, timeout, etc. — don't crash.
     const message = e instanceof Error ? e.message : "Unknown extraction error.";

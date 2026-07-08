@@ -10,10 +10,17 @@ export interface Highlight {
 }
 
 /**
- * The document pane. Renders page rasters as cards (as before) and, when a field
- * is selected, draws a generously-padded accent overlay on its source bbox.
- * bbox is normalized 0..1, so we position with percentages — correct at any
- * displayed size. Model bboxes are approximate, hence the outline-offset padding.
+ * The document pane. Renders page rasters as cards and, when a field is selected,
+ * highlights where its value was read from.
+ *
+ * The model's source bbox is only APPROXIMATE — vision models don't localize to
+ * the pixel, and a tight rectangle that lands off the value reads as broken and
+ * quietly erodes trust (worse than no box). So we don't draw the raw box: we
+ * highlight the horizontal BAND the value sits in (full width, at the model's
+ * vertical position) and label it "approx." A strip is much likelier to actually
+ * cover the value, and it reads honestly as "around here" instead of claiming a
+ * precision the model doesn't have. bbox is normalized 0..1, positioned with
+ * percentages so it's correct at any displayed size.
  */
 export function PageStack({
   pages,
@@ -49,21 +56,34 @@ export function PageStack({
               height={page.height}
               className="block w-full"
             />
-            {highlight?.bbox && highlight.page === i && (
-              <div
-                ref={overlayRef}
-                className="pointer-events-none absolute rounded-[2px]"
-                style={{
-                  left: `${highlight.bbox.x * 100}%`,
-                  top: `${highlight.bbox.y * 100}%`,
-                  width: `${highlight.bbox.width * 100}%`,
-                  height: `${highlight.bbox.height * 100}%`,
-                  outline: "2px solid var(--accent)",
-                  outlineOffset: "4px",
-                  background: "color-mix(in oklab, var(--accent) 14%, transparent)",
-                }}
-              />
-            )}
+            {highlight?.bbox && highlight.page === i && (() => {
+              // Pad the band around the model's y so an off-by-a-line bbox still
+              // covers the true value; clamp to the page.
+              const b = highlight.bbox;
+              const pad = Math.max(b.height * 0.6, 0.012);
+              const top = Math.max(b.y - pad, 0);
+              const bottom = Math.min(b.y + b.height + pad, 1);
+              return (
+                <div
+                  ref={overlayRef}
+                  className="pointer-events-none absolute left-[2%] right-[2%] rounded-[3px]"
+                  style={{
+                    top: `${top * 100}%`,
+                    height: `${(bottom - top) * 100}%`,
+                    outline: "2px dashed var(--accent)",
+                    outlineOffset: "1px",
+                    background: "color-mix(in oklab, var(--accent) 10%, transparent)",
+                  }}
+                >
+                  <span
+                    className="figure absolute left-1.5 top-1 rounded-sm px-1 py-px text-[9px] font-medium uppercase tracking-wide text-white"
+                    style={{ background: "var(--accent)" }}
+                  >
+                    approx. source
+                  </span>
+                </div>
+              );
+            })()}
           </div>
           <figcaption className="figure flex items-center justify-between border-t border-line px-3 py-2 text-xs text-ink-3">
             <span>
