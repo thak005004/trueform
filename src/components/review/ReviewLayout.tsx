@@ -6,6 +6,7 @@ import { ReviewProvider, useReview } from "@/review/review-context";
 import { getByPath } from "@/review/fields";
 import { PageStack, type Highlight } from "./PageStack";
 import { ReviewPanel } from "./ReviewPanel";
+import { MultiFormBanner } from "./MultiFormBanner";
 import { CommandPalette } from "./CommandPalette";
 
 /**
@@ -45,6 +46,7 @@ function ReviewLayoutInner() {
         <PageStack pages={pages} highlight={highlight} />
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-auto border-t border-line bg-surface lg:h-full lg:w-[45%] lg:flex-none lg:border-t-0 lg:border-l">
+        <MultiFormBanner />
         <ReviewPanel />
       </div>
       <CommandPalette />

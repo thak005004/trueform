@@ -22,6 +22,7 @@ import {
 import { encodeForApi, renderDocument, type RenderedPage } from "@/render/renderDocument";
 import type { W2, W2Extraction } from "@/lib/w2-schema";
 import type { ValidationResult } from "@/lib/validation";
+import type { FormScan } from "@/review/detect-forms";
 import { clearStorage, loadFromStorage, saveToStorage } from "@/state/session-file";
 
 export interface AuditEntry {
@@ -47,6 +48,7 @@ export interface PacketDocument {
   extractError: string | null;
   extractionVersion: number;
   extraction: W2Extraction | null; // original extraction, immutable
+  formScan: FormScan | null; // multi-person-per-page scan (null if not run/only one)
   validation: ValidationResult | null; // current (updates as the draft is edited)
   draft: W2 | null; // editable working copy; starts as a clone of extraction.w2
   original: W2 | null; // immutable baseline for the "edited" markers
@@ -57,6 +59,7 @@ export interface PacketDocument {
 export interface ExtractResult {
   extraction: W2Extraction;
   validation: ValidationResult;
+  formScan?: FormScan | null;
 }
 
 export type ReviewPatch = Partial<
@@ -107,6 +110,7 @@ function blankDocument(file: File): PacketDocument {
     extractError: null,
     extractionVersion: 0,
     extraction: null,
+    formScan: null,
     validation: null,
     draft: null,
     original: null,
@@ -181,7 +185,7 @@ export function PacketProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        const { extraction, validation } = json as unknown as ExtractResult;
+        const { extraction, validation, formScan } = json as unknown as ExtractResult;
 
         // A non-W-2 (bank statement, random PDF) typically comes back schema-valid
         // but EMPTY — the model correctly refuses to fabricate. Treat "no identity
@@ -204,6 +208,7 @@ export function PacketProvider({ children }: { children: ReactNode }) {
               ? {
                   ...d,
                   extraction,
+                  formScan: formScan ?? null,
                   validation,
                   draft: structuredClone(extraction.w2),
                   original: structuredClone(extraction.w2),
