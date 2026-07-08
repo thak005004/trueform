@@ -42,6 +42,8 @@ Anything that doesn't check out gets flagged for a person to look at. The point 
 
 Next.js and TypeScript, hosted on Vercel. The reading is done by Anthropic's vision model. A separate open-source tool (Tesseract) does the independent second read. PDFs are turned into images right in the browser. There is no database: a client's data stays in your browser tab, survives a refresh, and disappears when you close the tab, so sensitive information doesn't linger anywhere.
 
+For how the pieces fit together, see [ARCHITECTURE.md](ARCHITECTURE.md): a data-flow diagram of the full pipeline and the trust-boundary design.
+
 ## Run it locally
 
 ```bash
