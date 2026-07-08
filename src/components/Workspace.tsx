@@ -29,14 +29,16 @@ export function Workspace() {
 }
 
 function Header() {
-  const { documents, activeId, view, openDashboard, reset } = usePacket();
+  const { documents, activeId, active, view, openDashboard, reset } = usePacket();
   const hasDocs = documents.length > 0;
-  const showBack = view === "document" && documents.length > 1;
+  // In review, always offer a way back to the packet and show which file you're
+  // in — even for a single-document packet (which otherwise has no way back).
+  const inReview = view === "document" && hasDocs;
   const extractingCount = documents.filter((d) => d.extractStatus === "extracting").length;
 
   return (
     <header className="flex items-center gap-3 border-b border-line bg-surface px-4 py-3 sm:px-6">
-      <div className="flex items-center gap-2.5">
+      <div className="flex shrink-0 items-center gap-2.5">
         <LogoMark />
         <div className="flex items-baseline gap-2">
           <span className="text-base font-semibold tracking-tight text-ink">TrueForm</span>
@@ -44,21 +46,33 @@ function Header() {
         </div>
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
+      {inReview && (
+        <nav className="flex min-w-0 items-center gap-1.5 border-l border-line pl-3 text-sm">
+          <button
+            type="button"
+            onClick={openDashboard}
+            className="shrink-0 rounded-control px-2 py-1 text-ink-2 hover:bg-paper"
+            title="Back to the client packet"
+          >
+            ← Packet ({documents.length})
+          </button>
+          {active && (
+            <>
+              <span className="shrink-0 text-ink-3">/</span>
+              <span className="figure min-w-0 truncate text-ink-2" title={active.fileName}>
+                {active.fileName}
+              </span>
+            </>
+          )}
+        </nav>
+      )}
+
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         {extractingCount > 0 && (
           <span className="figure mr-1 hidden items-center gap-1.5 text-xs text-ink-3 sm:inline-flex">
             <Spinner />
             Extracting {extractingCount}…
           </span>
-        )}
-        {showBack && (
-          <button
-            type="button"
-            onClick={openDashboard}
-            className="rounded-control px-2.5 py-2 text-sm text-ink-2 hover:bg-paper"
-          >
-            ← Packet ({documents.length})
-          </button>
         )}
         {hasDocs && <Uploader />}
         {hasDocs && (
