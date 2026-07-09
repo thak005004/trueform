@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { RenderedPage } from "@/render/renderDocument";
 import { PageStack, type Highlight } from "./PageStack";
 import { runValidation } from "@/forms/engine";
-import type { ExtractedField, FieldDef, FormDefinition, FormInstance } from "@/forms/types";
+import type { ExtractedField, FieldDef, FormDefinition, FormInstance, ValidationResult } from "@/forms/types";
 
 /**
  * GENERIC, SCHEMA-DRIVEN REVIEW.
@@ -50,31 +50,46 @@ export function GenericFormReview({
   def,
   instance,
   pages,
+  onChange,
 }: {
   def: FormDefinition;
   instance: FormInstance;
   pages: RenderedPage[];
+  /** Persist edited instance + fresh validation back to the packet (dashboard/session). */
+  onChange?: (next: FormInstance, validation: ValidationResult) => void;
 }) {
-  // Editable text per field, seeded from the extraction. Source is kept aside so
-  // an edit doesn't lose the bbox that powers the source-link highlight.
-  const [text, setText] = useState<Record<string, string>>(() => {
-    const seed: Record<string, string> = {};
+  // Seed editable text AND each field's source ONCE from the extraction. Keeping
+  // the sources (and formType) in a stable seed — not read from `instance` on
+  // every render — is what lets the draft depend only on local edits, so writing
+  // the draft back via onChange can't feed into `instance` and loop.
+  const [seed] = useState(() => {
+    const text0: Record<string, string> = {};
+    const sources: Record<string, ExtractedField["source"]> = {};
     for (const f of def.schema) {
-      const v = instance.fields[f.id]?.value;
-      seed[f.id] = v == null ? "" : String(v);
+      const fld = instance.fields[f.id];
+      text0[f.id] = fld?.value == null ? "" : String(fld.value);
+      sources[f.id] = fld?.source ?? null;
     }
-    return seed;
+    return { text0, sources, formType: instance.formType };
   });
+  const [text, setText] = useState<Record<string, string>>(seed.text0);
   const [selected, setSelected] = useState<string | null>(null);
 
   // Rebuild the instance from edits and re-run the engine live.
   const draft: FormInstance = useMemo(() => {
     const fields: Record<string, ExtractedField> = {};
-    for (const f of def.schema) fields[f.id] = parseEdit(text[f.id] ?? "", f.type, instance.fields[f.id]?.source ?? null);
-    return { formType: instance.formType, fields };
-  }, [text, def, instance]);
+    for (const f of def.schema) fields[f.id] = parseEdit(text[f.id] ?? "", f.type, seed.sources[f.id] ?? null);
+    return { formType: seed.formType, fields };
+  }, [text, def, seed]);
 
   const validation = useMemo(() => runValidation(draft, def), [draft, def]);
+
+  // Sync edits + fresh validation back to the packet so the dashboard row and
+  // saved session reflect corrections. Seeded from `instance` once (useState
+  // initializer), so parent writes don't re-seed and this won't loop.
+  useEffect(() => {
+    onChange?.(draft, validation);
+  }, [draft, validation, onChange]);
 
   const groups = useMemo(() => {
     const order: string[] = [];

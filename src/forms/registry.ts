@@ -1,5 +1,6 @@
 import type { FormDefinition } from "./types";
 import { w2Definition } from "./w2";
+import { nec1099Definition } from "./1099nec";
 
 /**
  * THE FORM REGISTRY.
@@ -16,12 +17,17 @@ export type RegisteredForm = FormDefinition<any>;
 
 export const FORM_REGISTRY: Record<string, RegisteredForm> = {
   w2: w2Definition,
+  "1099-nec": nec1099Definition,
 };
 
 /** Human-facing labels for the classifier's answers and the UI. */
 export const FORM_LABELS: Record<string, string> = {
   w2: "Form W-2",
+  "1099-nec": "Form 1099-NEC",
 };
+
+/** The form ids the classifier is allowed to choose from (anything else → unknown). */
+export const KNOWN_FORM_IDS = Object.keys(FORM_REGISTRY);
 
 export function getForm(id: string): RegisteredForm | null {
   return FORM_REGISTRY[id] ?? null;

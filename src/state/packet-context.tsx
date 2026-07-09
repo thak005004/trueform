@@ -23,6 +23,8 @@ import { encodeForApi, renderDocument, type RenderedPage } from "@/render/render
 import type { W2, W2Extraction } from "@/lib/w2-schema";
 import type { ValidationResult } from "@/lib/validation";
 import type { FormScan } from "@/review/detect-forms";
+import type { FormInstance } from "@/forms/types";
+import type { Classification } from "@/forms/classify";
 import { clearStorage, loadFromStorage, saveToStorage } from "@/state/session-file";
 
 export interface AuditEntry {
@@ -47,13 +49,19 @@ export interface PacketDocument {
   extractStatus: ExtractStatus;
   extractError: string | null;
   extractionVersion: number;
-  extraction: W2Extraction | null; // original extraction, immutable
+  extraction: W2Extraction | null; // original extraction, immutable (W-2 path)
   formScan: FormScan | null; // multi-person-per-page scan (null if not run/only one)
   validation: ValidationResult | null; // current (updates as the draft is edited)
-  draft: W2 | null; // editable working copy; starts as a clone of extraction.w2
-  original: W2 | null; // immutable baseline for the "edited" markers
+  draft: W2 | null; // editable working copy; starts as a clone of extraction.w2 (W-2 path)
+  original: W2 | null; // immutable baseline for the "edited" markers (W-2 path)
   confirmed: string[]; // human-verified field paths
   audit: AuditEntry[];
+
+  // --- form routing (added with the classifier/router) ---
+  formType: string; // "w2" | "1099-nec" | "unknown"; which definition this doc uses
+  formInstance: FormInstance | null; // extracted instance for NON-W-2 forms (generic path)
+  needsReview: boolean; // classifier couldn't identify the form → routed to human review
+  classification: Classification | null; // the classifier's answer, kept for the UI
 }
 
 export interface ExtractResult {
@@ -63,7 +71,7 @@ export interface ExtractResult {
 }
 
 export type ReviewPatch = Partial<
-  Pick<PacketDocument, "validation" | "draft" | "confirmed" | "audit">
+  Pick<PacketDocument, "validation" | "draft" | "confirmed" | "audit" | "formInstance">
 >;
 
 interface PacketContextValue {
@@ -116,6 +124,10 @@ function blankDocument(file: File): PacketDocument {
     original: null,
     confirmed: [],
     audit: [],
+    formType: "w2", // placeholder until the classifier answers on extraction
+    formInstance: null,
+    needsReview: false,
+    classification: null,
   };
 }
 
@@ -185,33 +197,68 @@ export function PacketProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        const { extraction, validation, formScan } = json as unknown as ExtractResult;
+        const formType = (json.formType as string) ?? "w2";
+        const classification = (json.classification as Classification) ?? null;
 
-        // A non-W-2 (bank statement, random PDF) typically comes back schema-valid
-        // but EMPTY — the model correctly refuses to fabricate. Treat "no identity
-        // and no wages at all" as unreadable so the user gets a clear message and a
-        // Retry instead of a misleading blank review.
-        const w2 = extraction.w2;
-        const looksEmpty =
-          !w2.box1_wages.present &&
-          !w2.employee.name.present &&
-          !w2.employer.name.present &&
-          !w2.employee.ssn.present;
-        if (looksEmpty) {
-          patchDoc(docId, { extractStatus: "error", extractError: friendlyError(422) });
+        // Fail safe: the classifier couldn't confidently identify the form. We do
+        // NOT extract it as a guess — the document is marked for human review.
+        if (formType === "unknown") {
+          setDocuments((docs) =>
+            docs.map((d) =>
+              d.id === docId
+                ? { ...d, formType: "unknown", needsReview: true, classification, extractStatus: "done", extractionVersion: d.extractionVersion + 1 }
+                : d,
+            ),
+          );
           return;
         }
 
+        if (formType === "w2") {
+          const { extraction, validation, formScan } = json as unknown as ExtractResult;
+          // A non-W-2 (bank statement, random PDF) can come back schema-valid but
+          // EMPTY. Treat "no identity and no wages" as unreadable, not blank.
+          const w2 = extraction.w2;
+          const looksEmpty =
+            !w2.box1_wages.present && !w2.employee.name.present && !w2.employer.name.present && !w2.employee.ssn.present;
+          if (looksEmpty) {
+            patchDoc(docId, { extractStatus: "error", extractError: friendlyError(422) });
+            return;
+          }
+          setDocuments((docs) =>
+            docs.map((d) =>
+              d.id === docId
+                ? {
+                    ...d,
+                    formType: "w2",
+                    extraction,
+                    formScan: formScan ?? null,
+                    validation,
+                    classification,
+                    draft: structuredClone(extraction.w2),
+                    original: structuredClone(extraction.w2),
+                    confirmed: [],
+                    audit: [],
+                    extractStatus: "done",
+                    extractionVersion: d.extractionVersion + 1,
+                  }
+                : d,
+            ),
+          );
+          return;
+        }
+
+        // Any other KNOWN form: a generic instance validated by the same engine.
+        const instance = json.instance as unknown as FormInstance;
+        const genericValidation = json.validation as unknown as ValidationResult;
         setDocuments((docs) =>
           docs.map((d) =>
             d.id === docId
               ? {
                   ...d,
-                  extraction,
-                  formScan: formScan ?? null,
-                  validation,
-                  draft: structuredClone(extraction.w2),
-                  original: structuredClone(extraction.w2),
+                  formType,
+                  formInstance: instance,
+                  validation: genericValidation,
+                  classification,
                   confirmed: [],
                   audit: [],
                   extractStatus: "done",

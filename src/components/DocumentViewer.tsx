@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useDocument } from "@/state/document-context";
+import { useCallback, useEffect, useState } from "react";
+import { useDocument, usePacket } from "@/state/document-context";
+import type { FormInstance, ValidationResult } from "@/forms/types";
+import { getForm } from "@/forms/registry";
 import { IntroScene } from "./IntroScene";
 import { PageStack } from "./review/PageStack";
 import { ReviewLayout } from "./review/ReviewLayout";
+import { GenericFormReview } from "./review/GenericFormReview";
+import { UnidentifiedForm } from "./review/UnidentifiedForm";
 
 /**
  * Top-level switch for the main pane:
@@ -17,6 +21,16 @@ import { ReviewLayout } from "./review/ReviewLayout";
 export function DocumentViewer() {
   const { pages, status, error, extractStatus, extractError, result, extract } =
     useDocument();
+  const { active, updateReview } = usePacket();
+
+  // Stable so the generic renderer's persist-effect doesn't re-fire every render.
+  const activeId = active?.id;
+  const handleGenericChange = useCallback(
+    (inst: FormInstance, val: ValidationResult) => {
+      if (activeId) updateReview(activeId, { formInstance: inst, validation: val });
+    },
+    [activeId, updateReview],
+  );
 
   if (status === "idle") return <IntroScene />;
 
@@ -38,7 +52,26 @@ export function DocumentViewer() {
     );
   }
 
-  // ready: once extraction succeeds, the review UI takes over.
+  // --- Route by the classifier's answer (once extraction has resolved) ---
+  // Fail safe: an unidentified form goes to human review, never a guessed extract.
+  if (active?.needsReview) return <UnidentifiedForm doc={active} />;
+
+  // A known NON-W-2 form renders through the generic, schema-driven review.
+  if (active && active.formType !== "w2" && active.formInstance) {
+    const def = getForm(active.formType);
+    if (def) {
+      return (
+        <GenericFormReview
+          def={def}
+          instance={active.formInstance}
+          pages={active.pages}
+          onChange={handleGenericChange}
+        />
+      );
+    }
+  }
+
+  // W-2 keeps its rich bespoke review, unchanged.
   if (result) return <ReviewLayout />;
 
   return (

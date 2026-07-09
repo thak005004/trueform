@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { usePacket, type PacketDocument } from "@/state/document-context";
+import { FORM_LABELS } from "@/forms/registry";
 import {
   reconcilePacket,
   yearOverYear,
@@ -230,6 +231,23 @@ function DocumentRow({
 }) {
   const sum = docSummary(doc);
 
+  // Fail-safe: the classifier couldn't identify this document.
+  if (doc.needsReview) {
+    return (
+      <li>
+        <button type="button" onClick={() => onOpen(doc.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-paper">
+          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: "var(--review)" }} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium text-ink">Unidentified form</div>
+            <span className="figure truncate text-[11px] text-ink-3">{doc.fileName}</span>
+          </div>
+          <Badge text="needs review" color="var(--review)" bg="var(--review-bg)" />
+          <span aria-hidden className="text-ink-3">→</span>
+        </button>
+      </li>
+    );
+  }
+
   // Still working: a calm skeleton row, not a frozen blank.
   if (sum.kind === "extracting" || sum.kind === "pending") {
     return (
@@ -266,9 +284,16 @@ function DocumentRow({
     );
   }
 
-  // Done: open into the single-form review.
+  // Done: open into the review. Display adapts to the form type — W-2 shows the
+  // employee/employer/wages; other forms read their own key fields generically.
+  const isW2 = doc.formType === "w2";
+  const fi = doc.formInstance?.fields;
   const w2 = docCurrentW2(doc);
-  const box1 = w2?.box1_wages.value;
+  const primary = isW2 ? w2?.employee.name.value : fi?.recipient_name?.value;
+  const secondary = isW2 ? w2?.employer.name.value : FORM_LABELS[doc.formType] ?? doc.formType;
+  const year = isW2 ? w2?.taxYear.value : fi?.taxYear?.value;
+  const box1raw = isW2 ? w2?.box1_wages.value : fi?.box1_nonemployeeComp?.value;
+  const amount = typeof box1raw === "number" ? box1raw : null;
   return (
     <li>
       <button
@@ -278,17 +303,15 @@ function DocumentRow({
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
-            <span className="truncate text-sm font-medium text-ink">
-              {w2?.employee.name.value ?? "-"}
-            </span>
+            <span className="truncate text-sm font-medium text-ink">{primary ? String(primary) : "-"}</span>
             <span className="figure truncate text-[11px] text-ink-3">{doc.fileName}</span>
           </div>
           <div className="truncate text-xs text-ink-2">
-            {w2?.employer.name.value ?? "Employer"} · {w2?.taxYear.value ?? "-"}
+            {secondary ? String(secondary) : "Employer"} · {year != null ? String(year) : "-"}
           </div>
         </div>
         <div className="figure hidden shrink-0 text-sm text-ink sm:block">
-          {box1 != null ? usd(box1) : "-"}
+          {amount != null ? usd(amount) : "-"}
         </div>
         <StatusBadge sum={sum} />
         <span aria-hidden className="text-ink-3">→</span>
