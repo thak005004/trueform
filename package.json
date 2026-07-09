@@ -8,7 +8,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test src/lib/validation.test.ts src/review/reconcile.test.ts src/review/cross-read.test.ts src/review/suggestions.test.ts src/review/explain-math.test.ts src/review/box12-codes.test.ts src/review/packet-helpers.test.ts src/review/efw2.test.ts",
+    "test": "tsx --test src/lib/validation.test.ts src/review/reconcile.test.ts src/review/cross-read.test.ts src/review/suggestions.test.ts src/review/explain-math.test.ts src/review/box12-codes.test.ts src/review/packet-helpers.test.ts src/review/efw2.test.ts src/forms/1099nec.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
