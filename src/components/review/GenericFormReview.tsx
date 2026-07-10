@@ -134,6 +134,11 @@ export function GenericFormReview({
   // against the ORIGINAL extraction (a ref, so edits don't retrigger it).
   const initialInstanceRef = useRef(instance);
   const crossReadFields = useMemo(() => {
+    // Only cross-read DEFINED forms. On a templateless (generic) form the model's
+    // bounding boxes are unreliable, so the crops land wrong and the second read
+    // "can't confirm" everything — the cry-wolf failure the cross-read design
+    // fought to avoid. We'd rather run no check than a false one.
+    if (!verified) return [];
     const kindOf = (t: FieldType): FieldKind | null =>
       t === "money" ? "money" : t === "ssn" || t === "ein" || t === "tin" ? "id" : null;
     const hasFlags = def.schema.some((f) => f.crossRead);
@@ -143,7 +148,7 @@ export function GenericFormReview({
       if (kind && (hasFlags ? f.crossRead : true)) out.push({ id: f.id, kind });
     }
     return out;
-  }, [def]);
+  }, [def, verified]);
 
   const [crossRead, setCrossRead] = useState<CrossReadResult | null>(null);
   const [crDone, setCrDone] = useState(false);
@@ -195,12 +200,8 @@ export function GenericFormReview({
             <div className="text-sm font-semibold text-ink">{def.name}</div>
             <div className="figure text-[11px] text-ink-3">
               {verified
-                ? `${validation.summary.errors} errors · ${validation.summary.warnings} review · ${verifiedCount} verified`
-                : crossReadFields.length === 0
-                  ? "Extracted"
-                  : !crDone
-                    ? "Extracted · second read running…"
-                    : `Extracted · second read confirmed ${crConfirmed.length}/${crossReadFields.length} key fields`}
+                ? `${validation.summary.errors} errors · ${validation.summary.warnings} review · ${verifiedCount} verified${crDone && crossReadFields.length ? ` · 2nd read ${crConfirmed.length}/${crossReadFields.length}` : ""}`
+                : "Extracted"}
             </div>
           </div>
           <button
@@ -224,7 +225,7 @@ export function GenericFormReview({
                 <path d="M12 8h.01" />
               </svg>
               <p className="text-[13px] leading-snug text-ink-2">
-                <span className="font-semibold text-ink">Extracted and read-checked.</span> TrueForm read every field, and an independent second read double-checks the key numbers below. It doesn&rsquo;t have this form&rsquo;s built-in tax math yet (it has that for forms like W-2 and 1099), so give the values a quick check against the document as you go.
+                <span className="font-semibold text-ink">Extracted, ready for your review.</span> TrueForm read every field it could find on this form. It has built-in tax checks for the forms it knows (like W-2 and 1099), and this one isn&rsquo;t one of them yet, so give the values a quick check against the document as you go.
               </p>
             </div>
           </div>
