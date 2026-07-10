@@ -97,6 +97,23 @@ interface PacketContextValue {
 
 const PacketContext = createContext<PacketContextValue | null>(null);
 
+// --- bulk / throughput tuning --------------------------------------------
+/** Extract at most this many documents at once, so a big drop doesn't fire
+ *  hundreds of parallel model calls and trip rate limits. */
+const MAX_CONCURRENT = 4;
+/** Retry transient failures (rate limits, gateway/5xx, network) this many times. */
+const MAX_RETRIES = 3;
+/** HTTP statuses worth retrying; 400/422 (bad input) fail fast. */
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+/** Beyond this doc count we stop auto-persisting the session: stringifying
+ *  hundreds of page rasters on every update janks the UI and blows the
+ *  ~5MB sessionStorage quota anyway. (Explicit Save still available.) */
+const MAX_PERSIST_DOCS = 20;
+
+/** Exponential backoff with jitter, capped at 8s. */
+const backoffMs = (attempt: number) => Math.min(8000, 1000 * 2 ** attempt) + Math.floor(Math.random() * 300);
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 function newId(): string {
   return typeof crypto !== "undefined" && crypto.randomUUID
     ? crypto.randomUUID()
@@ -167,7 +184,9 @@ export function PacketProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (documents.length === 0) clearStorage();
-    else saveToStorage(documents, activeId, view);
+    else if (documents.length <= MAX_PERSIST_DOCS) saveToStorage(documents, activeId, view);
+    // Large packet: skip auto-persist. Serializing hundreds of page rasters on
+    // every extraction would jank the UI and exceed the sessionStorage quota.
   }, [documents, activeId, view]);
 
   const patchDoc = useCallback((id: string, patch: Partial<PacketDocument>) => {
@@ -183,23 +202,46 @@ export function PacketProvider({ children }: { children: ReactNode }) {
       try {
         // Send a size-bounded JPEG copy (the crisp PNG raster stays for the viewer).
         const apiPages = await Promise.all(pages.map((p) => encodeForApi(p)));
-        const res = await fetch("/api/extract", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pages: apiPages.map((dataUrl) => ({ dataUrl })) }),
-        });
+        const body = JSON.stringify({ pages: apiPages.map((dataUrl) => ({ dataUrl })) });
 
+        // Retry transient failures with exponential backoff. Essential for bulk:
+        // when many docs extract at once they can briefly trip rate limits (429)
+        // or gateway errors — a short backoff recovers them instead of failing.
         let json: Record<string, unknown> = {};
-        try {
-          json = await res.json();
-        } catch {
-          /* non-JSON body (e.g. a gateway error) — fall through to status handling */
+        let ok = false;
+        let status = 0;
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+          try {
+            const res = await fetch("/api/extract", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body,
+            });
+            status = res.status;
+            try {
+              json = await res.json();
+            } catch {
+              json = {};
+            }
+            if (res.ok) {
+              ok = true;
+              break;
+            }
+            // Bad input (400/422) won't get better on retry — fail fast.
+            if (!RETRYABLE_STATUS.has(res.status) || attempt === MAX_RETRIES) break;
+          } catch {
+            // Network error — retryable unless we're out of attempts.
+            if (attempt === MAX_RETRIES) {
+              status = 0;
+              break;
+            }
+          }
+          await sleep(backoffMs(attempt));
         }
 
-        if (!res.ok) {
-          // Log the technical detail; show the user a calm, recoverable message.
-          console.error(`Extraction failed (HTTP ${res.status}):`, json);
-          patchDoc(docId, { extractStatus: "error", extractError: friendlyError(res.status) });
+        if (!ok) {
+          console.error(`Extraction failed (HTTP ${status}) after retries`);
+          patchDoc(docId, { extractStatus: "error", extractError: friendlyError(status || null) });
           return;
         }
 
@@ -341,20 +383,30 @@ export function PacketProvider({ children }: { children: ReactNode }) {
       setDocuments((docs) => [...docs, ...entries.map((e) => e.doc)]);
       setActiveId(entries[entries.length - 1].doc.id);
       setView(files.length > 1 ? "dashboard" : "document");
-      await Promise.all(
-        entries.map(async ({ file, doc }) => {
-          try {
-            const pages = await renderDocument(file);
-            patchDoc(doc.id, { pages, status: "ready" });
-            await runExtraction(doc.id, pages);
-          } catch (e) {
-            patchDoc(doc.id, {
-              status: "error",
-              error: e instanceof Error ? e.message : "Failed to render the document.",
-            });
-          }
-        }),
-      );
+
+      const processOne = async ({ file, doc }: (typeof entries)[number]) => {
+        try {
+          const pages = await renderDocument(file);
+          patchDoc(doc.id, { pages, status: "ready" });
+          await runExtraction(doc.id, pages);
+        } catch (e) {
+          patchDoc(doc.id, {
+            status: "error",
+            error: e instanceof Error ? e.message : "Failed to render the document.",
+          });
+        }
+      };
+
+      // Bounded concurrency: at most MAX_CONCURRENT docs render+extract at once,
+      // so dropping hundreds of files paces the work instead of firing hundreds
+      // of parallel model calls. Workers pull from a shared cursor until drained.
+      let cursor = 0;
+      const worker = async () => {
+        while (cursor < entries.length) {
+          await processOne(entries[cursor++]);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENT, entries.length) }, worker));
     },
     [patchDoc, runExtraction],
   );

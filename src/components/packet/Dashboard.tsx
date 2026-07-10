@@ -25,15 +25,24 @@ export function Dashboard() {
   const yoy = useMemo(() => yearOverYear(reconcileInputs(documents)), [documents]);
   const single = documents.length <= 1;
 
+  // Bulk throughput counts for the progress bar.
+  const extracting = documents.filter((d) => d.extractStatus === "extracting").length;
+  const done = documents.filter((d) => d.extractStatus === "done").length;
+  const failed = documents.filter((d) => d.extractStatus === "error").length;
+
   return (
     <div className="h-full overflow-auto bg-paper">
       <div className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 sm:px-6">
         <header className="flex items-baseline justify-between">
           <h2 className="text-lg font-semibold text-ink">Client packet</h2>
           <span className="text-sm text-ink-2">
-            {documents.length} W-2{documents.length === 1 ? "" : "s"}
+            {documents.length} form{documents.length === 1 ? "" : "s"}
           </span>
         </header>
+
+        {(extracting > 0 || documents.length > 5) && (
+          <BulkProgress done={done} failed={failed} total={documents.length} extracting={extracting} />
+        )}
 
         <div className="grid grid-cols-1 gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-3">
           <Stat label="Documents" value={String(recon.aggregates.documentCount)} />
@@ -49,6 +58,32 @@ export function Dashboard() {
         {yoy.length > 0 && <YearOverYearPanel entries={yoy} onJump={openDocument} />}
 
         <DocumentList documents={documents} onOpen={openDocument} onRetry={retryExtraction} />
+      </div>
+    </div>
+  );
+}
+
+/** Bulk-extraction progress bar for a large / in-flight packet. */
+function BulkProgress({ done, failed, total, extracting }: { done: number; failed: number; total: number; extracting: number }) {
+  const finished = done + failed;
+  const pct = total ? Math.round((finished / total) * 100) : 0;
+  return (
+    <div className="rounded-card border border-line bg-surface px-4 py-3">
+      <div className="mb-2 flex items-baseline justify-between text-xs">
+        <span className="text-ink-2">
+          {done} extracted
+          {extracting ? ` · ${extracting} in progress` : ""}
+          {failed ? ` · ${failed} failed` : ""}
+        </span>
+        <span className="figure text-ink-3">
+          {finished}/{total}
+        </span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-line">
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: `${pct}%`, background: failed && !extracting ? "var(--review)" : "var(--accent)" }}
+        />
       </div>
     </div>
   );

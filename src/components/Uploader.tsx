@@ -12,24 +12,26 @@ const ACCEPT = "application/pdf,image/png,image/jpeg";
  */
 export function Uploader() {
   const { loadFile } = useDocument();
-  const { documents } = usePacket();
+  const { documents, loadFiles } = usePacket();
   const inputRef = useRef<HTMLInputElement>(null);
 
   function onChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) loadFile(file);
-    e.target.value = ""; // allow re-selecting the same file
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 1) loadFile(files[0]);
+    else if (files.length > 1) loadFiles(files); // bulk: bounded-concurrency queue
+    e.target.value = ""; // allow re-selecting the same file(s)
   }
 
   return (
     <>
-      <input ref={inputRef} type="file" accept={ACCEPT} onChange={onChange} className="hidden" />
+      <input ref={inputRef} type="file" accept={ACCEPT} multiple onChange={onChange} className="hidden" />
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
         className="rounded-control bg-ink px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-accent"
+        title="Add one form or select many at once"
       >
-        {documents.length ? "Add W-2" : "Upload W-2"}
+        {documents.length ? "Add forms" : "Upload forms"}
       </button>
     </>
   );

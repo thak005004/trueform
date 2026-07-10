@@ -1,31 +1,33 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
-import { useDocument } from "@/state/document-context";
+import { useDocument, usePacket } from "@/state/document-context";
 
 const ACCEPT = "application/pdf,image/png,image/jpeg";
 
 /**
- * The upload target card: BOTH click-to-upload and drag-and-drop, funnelling
- * into the same `loadFile` render pipeline as the header button. Sits inside the
- * IntroScene, so this component is just the card (its parent handles layout).
+ * The upload target card: BOTH click-to-upload and drag-and-drop, funnelling into
+ * the same render pipeline as the header button. Accepts ONE or MANY files — a
+ * multi-file drop fans out through the bounded-concurrency queue.
  */
 export function DropZone() {
   const { loadFile } = useDocument();
+  const { loadFiles } = usePacket();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
-  function pick(file: File | undefined) {
-    if (file) loadFile(file);
+  function pick(files: File[]) {
+    if (files.length === 1) loadFile(files[0]);
+    else if (files.length > 1) loadFiles(files); // bulk: bounded-concurrency queue
   }
   function onChange(e: ChangeEvent<HTMLInputElement>) {
-    pick(e.target.files?.[0]);
-    e.target.value = ""; // allow re-selecting the same file
+    pick(Array.from(e.target.files ?? []));
+    e.target.value = ""; // allow re-selecting the same file(s)
   }
   function onDrop(e: DragEvent) {
     e.preventDefault();
     setDragging(false);
-    pick(e.dataTransfer.files?.[0]);
+    pick(Array.from(e.dataTransfer.files ?? []));
   }
   function onDragOver(e: DragEvent) {
     e.preventDefault(); // required to allow a drop
@@ -42,12 +44,13 @@ export function DropZone() {
         ref={inputRef}
         type="file"
         accept={ACCEPT}
+        multiple
         onChange={onChange}
         className="hidden"
       />
       <button
         type="button"
-        aria-label="Upload a W-2 file"
+        aria-label="Upload one or many tax forms"
         onClick={() => inputRef.current?.click()}
         onDrop={onDrop}
         onDragOver={onDragOver}
@@ -66,10 +69,10 @@ export function DropZone() {
           <UploadIcon />
         </span>
         <span className="text-xl font-semibold text-ink">
-          {dragging ? "Drop to upload" : "Drop your W-2 here"}
+          {dragging ? "Drop to upload" : "Drop your tax forms here"}
         </span>
         <span className="text-base text-ink-2">
-          Drag and drop, or click to choose a file
+          Drag and drop one or many, or click to choose files
         </span>
         <span className="figure text-sm tracking-wide text-ink-2">
           PDF · PNG · JPEG
