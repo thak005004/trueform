@@ -29,12 +29,14 @@ const PILLARS = [
 // the whole flow without a document of their own — each exercises a different part
 // of the trust layer.
 const SAMPLES = [
-  { url: "/samples/w2-clean.pdf", name: "sample-w2-clean.pdf", label: "Clean W-2", note: "Passes every tax-math check", type: "application/pdf" },
-  { url: "/samples/w2-transposed-box4.pdf", name: "sample-box4-error.pdf", label: "Box 4 error", note: "Transposed digit the math catches", type: "application/pdf" },
-  { url: "/samples/w2-high-earner.pdf", name: "sample-high-earner.pdf", label: "High earner", note: "$250k, Additional Medicare surtax", type: "application/pdf" },
-  { url: "/samples/w2-roth.pdf", name: "sample-roth-401k.pdf", label: "Roth 401(k)", note: "Post-tax, no false deferral flag", type: "application/pdf" },
-  { url: "/samples/w2-multistate.pdf", name: "sample-multistate.pdf", label: "Multi-state", note: "Two state rows (CA + NY)", type: "application/pdf" },
-  { url: "/samples/w2-messy.jpg", name: "sample-messy-scan.jpg", label: "Messy scan", note: "Bad scan that trips the low-confidence banner", type: "image/jpeg" },
+  { url: "/samples/w2-clean.pdf", name: "sample-w2-clean.pdf", label: "Clean W-2", note: "Verified · passes every tax-math check", type: "application/pdf" },
+  { url: "/samples/w2-transposed-box4.pdf", name: "sample-box4-error.pdf", label: "Box 4 error", note: "Verified · transposed digit the math catches", type: "application/pdf" },
+  { url: "/samples/w2-high-earner.pdf", name: "sample-high-earner.pdf", label: "High earner", note: "Verified · $250k, Additional Medicare surtax", type: "application/pdf" },
+  { url: "/samples/1099-nec.pdf", name: "sample-1099-nec.pdf", label: "1099-NEC", note: "Verified · a second form, its own rules", type: "application/pdf" },
+  { url: "/samples/1098-t.pdf", name: "sample-1098-t.pdf", label: "1098-T", note: "No definition · extracted, flagged unverified", type: "application/pdf" },
+  { url: "/samples/w2-multistate.pdf", name: "sample-multistate.pdf", label: "Multi-state W-2", note: "Verified · two state rows (CA + NY)", type: "application/pdf" },
+  { url: "/samples/w2-roth.pdf", name: "sample-roth-401k.pdf", label: "Roth 401(k) W-2", note: "Verified · post-tax, no false deferral flag", type: "application/pdf" },
+  { url: "/samples/w2-messy.jpg", name: "sample-messy-scan.jpg", label: "Messy scan", note: "Verified · bad scan trips the low-confidence banner", type: "image/jpeg" },
 ];
 
 /**
@@ -134,7 +136,7 @@ export function IntroScene() {
           style={{ animationDelay: "300ms" }}
         >
           <p className="text-sm font-semibold uppercase tracking-wider text-ink-2">
-            No form handy? Try a sample W-2
+            No form handy? Try a sample
           </p>
 
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
