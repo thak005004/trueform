@@ -51,7 +51,7 @@ export interface GenericOutcome {
 }
 
 const mapType = (t: z.infer<typeof DiscoveredField>["type"]): FieldType =>
-  t === "id" ? "text" : t; // "id" collapses to text; we don't format unknown ids
+  t === "id" ? "tin" : t; // keep ids as "tin" so the second read can cross-check them
 
 const parseMoney = (v: string | null): number | null => {
   if (v == null) return null;

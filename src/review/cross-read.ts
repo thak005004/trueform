@@ -1,4 +1,5 @@
 import type { W2, SourceRef } from "@/lib/w2-schema";
+import type { FormInstance } from "@/forms/types";
 import { getByPath, type FieldKind } from "@/review/fields";
 
 /**
@@ -186,6 +187,45 @@ export async function runCrossRead(pages: { dataUrl: string }[], w2: W2): Promis
       else disagreements[path] = { ocrText, kind };
     } catch {
       // A single field's OCR failure shouldn't abort the whole pass.
+    }
+  }
+
+  return { disagreements, confirmed };
+}
+
+/**
+ * The SAME independent second read, but driven by a flat FormInstance + a caller-
+ * supplied field list — so it works on ANY form (1099, or a generic form we have
+ * no definition for). This is form-agnostic verification with zero tax math: it
+ * only asks "does an independent read agree with the value we extracted?" Keys the
+ * result by field id. Scope callers to money/id fields (reliable crops), same as
+ * the W-2 list, to avoid the stacked-block false alarms.
+ */
+export async function runCrossReadInstance(
+  pages: { dataUrl: string }[],
+  instance: FormInstance,
+  fields: { id: string; kind: FieldKind }[],
+): Promise<CrossReadResult> {
+  const disagreements: Record<string, FieldDisagreement> = {};
+  const confirmed: string[] = [];
+  if (fields.length === 0) return { disagreements, confirmed };
+  const worker = await getWorker();
+
+  for (const { id, kind } of fields) {
+    const field = instance.fields[id];
+    if (!field || field.value == null || !field.present) continue;
+    const src = field.source;
+    if (!src || !src.bbox || pages[src.page] == null) continue;
+
+    try {
+      const crop = await cropRegion(pages[src.page].dataUrl, src.bbox);
+      const { data } = await worker.recognize(crop);
+      const ocrText = data.text.trim();
+      if (!hasReadableSignal(kind, ocrText)) continue;
+      if (valuePresent(kind, field.value, ocrText)) confirmed.push(id);
+      else disagreements[id] = { ocrText, kind };
+    } catch {
+      // one field's OCR failure shouldn't abort the pass
     }
   }
 

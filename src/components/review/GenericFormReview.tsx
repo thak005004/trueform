@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { RenderedPage } from "@/render/renderDocument";
 import { PageStack, type Highlight } from "./PageStack";
 import { runValidation } from "@/forms/engine";
-import type { ExtractedField, FieldDef, FormDefinition, FormInstance, ValidationResult } from "@/forms/types";
+import type { ExtractedField, FieldDef, FieldType, FormDefinition, FormInstance, ValidationResult } from "@/forms/types";
+import { runCrossReadInstance, type CrossReadResult } from "@/review/cross-read";
+import type { FieldKind } from "@/review/fields";
 
 /**
  * GENERIC, SCHEMA-DRIVEN REVIEW.
@@ -126,6 +128,49 @@ export function GenericFormReview({
 
   const verifiedCount = def.schema.filter((f) => (validation.byField[f.id]?.status ?? "ok") === "ok").length;
 
+  // --- Independent second read (form-agnostic verification, no tax math) --------
+  // Confirms whether an independent OCR read agrees with each extracted value.
+  // Runs on ANY form. Scoped to money + id fields (reliable crops). Runs once
+  // against the ORIGINAL extraction (a ref, so edits don't retrigger it).
+  const initialInstanceRef = useRef(instance);
+  const crossReadFields = useMemo(() => {
+    const kindOf = (t: FieldType): FieldKind | null =>
+      t === "money" ? "money" : t === "ssn" || t === "ein" || t === "tin" ? "id" : null;
+    const hasFlags = def.schema.some((f) => f.crossRead);
+    const out: { id: string; kind: FieldKind }[] = [];
+    for (const f of def.schema) {
+      const kind = kindOf(f.type);
+      if (kind && (hasFlags ? f.crossRead : true)) out.push({ id: f.id, kind });
+    }
+    return out;
+  }, [def]);
+
+  const [crossRead, setCrossRead] = useState<CrossReadResult | null>(null);
+  const [crDone, setCrDone] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    if (crossReadFields.length === 0) {
+      setCrDone(true);
+      return;
+    }
+    runCrossReadInstance(pages, initialInstanceRef.current, crossReadFields)
+      .then((r) => {
+        if (!cancelled) {
+          setCrossRead(r);
+          setCrDone(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCrDone(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pages, crossReadFields]);
+
+  const crConfirmed = crossRead?.confirmed ?? [];
+  const crDisagree = crossRead?.disagreements ?? {};
+
   function exportJSON() {
     const rec: Record<string, unknown> = { formType: def.id, taxYear: draft.fields.taxYear?.value ?? null };
     for (const [fid, m] of Object.entries(def.outputMapping)) rec[m.exportKey] = draft.fields[fid]?.value ?? null;
@@ -151,7 +196,11 @@ export function GenericFormReview({
             <div className="figure text-[11px] text-ink-3">
               {verified
                 ? `${validation.summary.errors} errors · ${validation.summary.warnings} review · ${verifiedCount} verified`
-                : "Extracted · not machine-checked"}
+                : crossReadFields.length === 0
+                  ? "Extracted"
+                  : !crDone
+                    ? "Extracted · second read running…"
+                    : `Extracted · second read confirmed ${crConfirmed.length}/${crossReadFields.length} key fields`}
             </div>
           </div>
           <button
@@ -175,7 +224,7 @@ export function GenericFormReview({
                 <path d="M12 8h.01" />
               </svg>
               <p className="text-[13px] leading-snug text-ink-2">
-                <span className="font-semibold text-ink">Extracted, ready for your review.</span> TrueForm read every field it could find on this form. It has built-in tax checks for the forms it knows (like W-2 and 1099), and this one isn&rsquo;t one of them yet, so give the values a quick check against the document as you go.
+                <span className="font-semibold text-ink">Extracted and read-checked.</span> TrueForm read every field, and an independent second read double-checks the key numbers below. It doesn&rsquo;t have this form&rsquo;s built-in tax math yet (it has that for forms like W-2 and 1099), so give the values a quick check against the document as you go.
               </p>
             </div>
           </div>
@@ -188,8 +237,16 @@ export function GenericFormReview({
               <div className="overflow-hidden rounded-card border border-line">
                 {g.fields.map((f, i) => {
                   const status = validation.byField[f.id]?.status ?? "ok";
-                  // Unverified tier: neutral dot, never a green "checked" signal.
-                  const dot = verified ? statusColor[status] : "var(--ink-3)";
+                  // Layer the independent second read on top of (or, for the
+                  // unverified tier, INSTEAD of) the rule status.
+                  const crFlag = !crDone ? "none" : crDisagree[f.id] ? "disagree" : crConfirmed.includes(f.id) ? "confirmed" : "none";
+                  let dot: string;
+                  if (verified) {
+                    dot = statusColor[status];
+                    if (crFlag === "disagree" && status === "ok") dot = "var(--review)"; // second read flags a field the rules passed
+                  } else {
+                    dot = crFlag === "disagree" ? "var(--review)" : crFlag === "confirmed" ? "var(--verified)" : "var(--ink-3)";
+                  }
                   const mono = f.type !== "text";
                   return (
                     <div
@@ -197,10 +254,13 @@ export function GenericFormReview({
                       className={`flex items-center gap-3 px-3 py-2.5 ${i > 0 ? "border-t border-line" : ""} ${selected === f.id ? "bg-paper" : ""}`}
                       onClick={() => setSelected(f.id)}
                     >
-                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: dot }} aria-label={verified ? status : "unverified"} />
+                      <span className="mt-0.5 h-2 w-2 shrink-0 self-start rounded-full" style={{ background: dot }} aria-label={crFlag !== "none" ? crFlag : verified ? status : "unchecked"} />
                       <div className="min-w-0 flex-1">
                         {f.box && <div className="figure text-[10px] uppercase tracking-wide text-ink-3">{f.box}</div>}
                         <div className="truncate text-[13px] text-ink-2">{f.label}</div>
+                        {crFlag === "disagree" && (
+                          <p className="mt-1 text-[11px] leading-snug text-review">Second read couldn&rsquo;t confirm this value. Check it against the document.</p>
+                        )}
                       </div>
                       <input
                         value={text[f.id] ?? ""}
