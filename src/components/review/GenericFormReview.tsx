@@ -164,15 +164,18 @@ export function GenericFormReview({
         </div>
 
         {!verified && (
-          <div className="border-b border-review/40 bg-review-bg px-4 py-2.5">
+          <div
+            className="border-b border-line px-4 py-2.5"
+            style={{ background: "color-mix(in oklab, var(--accent) 7%, var(--surface))" }}
+          >
             <div className="flex items-start gap-2">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0 text-review" aria-hidden>
-                <path d="M10.3 3.3 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.3a2 2 0 0 0-3.4 0Z" />
-                <path d="M12 9v4" />
-                <path d="M12 17h.01" />
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0 text-accent" aria-hidden>
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4" />
+                <path d="M12 8h.01" />
               </svg>
-              <p className="text-[13px] leading-snug text-review">
-                <span className="font-semibold">Unverified extraction.</span> TrueForm doesn&rsquo;t have a definition for this form, so it read the fields but ran <span className="font-medium">no form-specific tax checks</span>. Confirm every value against the document before using it.
+              <p className="text-[13px] leading-snug text-ink-2">
+                <span className="font-semibold text-ink">Extracted, ready for your review.</span> TrueForm read every field it could find on this form. It has built-in tax checks for the forms it knows (like W-2 and 1099), and this one isn&rsquo;t one of them yet, so give the values a quick check against the document as you go.
               </p>
             </div>
           </div>

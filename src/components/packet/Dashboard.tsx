@@ -283,7 +283,7 @@ function DocumentRow({
     );
   }
 
-  // Generic tier: an unrecognized tax form, extracted but not machine-checked.
+  // Generic tier: an unrecognized tax form, extracted and ready for review.
   if (doc.formType === "generic" && doc.extractStatus === "done") {
     return (
       <li>
@@ -293,7 +293,7 @@ function DocumentRow({
             <div className="truncate text-sm font-medium text-ink">{doc.formName ?? "Tax form"}</div>
             <span className="figure truncate text-[11px] text-ink-3">{doc.fileName}</span>
           </div>
-          <Badge text="unverified" color="var(--review)" bg="var(--review-bg)" />
+          <Badge text="extracted" color="var(--ink-2)" bg="var(--paper)" />
           <span aria-hidden className="text-ink-3">→</span>
         </button>
       </li>
