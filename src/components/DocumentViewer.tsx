@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDocument, usePacket } from "@/state/document-context";
-import type { FormInstance, ValidationResult } from "@/forms/types";
+import type { FormInstance, ValidationResult, FormDefinition, FieldDef } from "@/forms/types";
 import { getForm } from "@/forms/registry";
 import { IntroScene } from "./IntroScene";
 import { PageStack } from "./review/PageStack";
@@ -18,6 +18,26 @@ import { UnidentifiedForm } from "./review/UnidentifiedForm";
  *   ready      → document only (pre-extract), or the two-pane review once
  *                extraction has returned { extraction, validation }.
  */
+/**
+ * A minimal, rules-free definition for the generic (unverified) tier, built from
+ * the schema the model discovered. No validation runs (verified=false at the call
+ * site), so the placeholder tax-year/context helpers are never exercised; they
+ * only satisfy the type. outputMapping is derived so JSON export still works.
+ */
+function buildGenericDef(name: string, schema: FieldDef[]): FormDefinition {
+  return {
+    id: "generic",
+    name,
+    taxYears: [2000, 2100],
+    schema,
+    rules: [],
+    toInstance: (inst) => inst,
+    taxYearField: () => ({ present: false, value: null, raw: null, source: null }),
+    resolveContext: () => ({ ctx: { constants: {}, resolvedYear: 0, tolerance: 2 }, resolvedYear: 0, exact: true }),
+    outputMapping: Object.fromEntries(schema.map((f) => [f.id, { target: f.label, exportKey: f.id }])),
+  };
+}
+
 export function DocumentViewer() {
   const { pages, status, error, extractStatus, extractError, result, extract } =
     useDocument();
@@ -30,6 +50,16 @@ export function DocumentViewer() {
       if (activeId) updateReview(activeId, { formInstance: inst, validation: val });
     },
     [activeId, updateReview],
+  );
+
+  // Stable generic definition (built from the discovered schema) so the renderer's
+  // props don't change identity every render and re-fire its persist-effect.
+  const genericDef = useMemo(
+    () =>
+      active?.formType === "generic" && active.formSchema
+        ? buildGenericDef(active.formName ?? "Tax form", active.formSchema)
+        : null,
+    [active?.formType, active?.formName, active?.formSchema],
   );
 
   if (status === "idle") return <IntroScene />;
@@ -56,7 +86,22 @@ export function DocumentViewer() {
   // Fail safe: an unidentified form goes to human review, never a guessed extract.
   if (active?.needsReview) return <UnidentifiedForm doc={active} />;
 
-  // A known NON-W-2 form renders through the generic, schema-driven review.
+  // The generic (unverified) tier: an unrecognized tax form we discovered fields
+  // for. Build a lightweight definition from the synthesized schema and render it
+  // with verified=false (neutral fields + "unverified" banner).
+  if (active && active.formType === "generic" && active.formInstance && genericDef) {
+    return (
+      <GenericFormReview
+        def={genericDef}
+        instance={active.formInstance}
+        pages={active.pages}
+        onChange={handleGenericChange}
+        verified={false}
+      />
+    );
+  }
+
+  // A known NON-W-2 form (e.g. 1099-NEC) renders through the schema-driven review, verified.
   if (active && active.formType !== "w2" && active.formInstance) {
     const def = getForm(active.formType);
     if (def) {

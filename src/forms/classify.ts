@@ -17,31 +17,42 @@ import { FORM_LABELS, KNOWN_FORM_IDS } from "./registry";
 const MODEL = process.env.DETECT_MODEL ?? process.env.EXTRACTION_MODEL ?? "claude-haiku-4-5";
 
 export interface Classification {
-  /** A KNOWN_FORM_IDS id, or "unknown" (the fail-safe). */
+  /** A KNOWN_FORM_IDS id, or "unknown" (no confident match to a defined form). */
   formType: string;
   confidence: "high" | "low";
+  /** Is this ANY US tax form? Gates the generic "extract but don't verify" tier. */
+  isTaxForm: boolean;
+  /** Best-guess human name, e.g. "Form 1098 (Mortgage Interest)" — labels the generic tier. */
+  formName: string | null;
   note: string | null;
 }
 
 const Shape = z.object({
   formType: z.string(),
   confidence: z.enum(["high", "low"]),
+  isTaxForm: z.boolean(),
+  formName: z.string().nullable(),
   note: z.string().nullable(),
 });
 
-const UNKNOWN: Classification = { formType: "unknown", confidence: "low", note: "Could not confidently identify the form." };
+const UNKNOWN: Classification = { formType: "unknown", confidence: "low", isTaxForm: false, formName: null, note: "Could not confidently identify the form." };
 
 export async function classifyForm(pages: PageImage[], client = new Anthropic()): Promise<Classification> {
   if (pages.length === 0) return UNKNOWN;
 
   const options = KNOWN_FORM_IDS.map((id) => `- "${id}": ${FORM_LABELS[id]}`).join("\n");
-  const system = `You identify which US tax form a scanned document is, for a routing step.
+  const system = `You classify a scanned document for a tax-form routing step. Report three things.
 
-Choose exactly one id from this list, or "unknown":
+1. formType: choose exactly one id from this list, or "unknown":
 ${options}
-- "unknown": anything else — a different tax form, an ambiguous image, or not a tax form at all.
+- "unknown": any tax form NOT in the list above, an ambiguous image, or a non-tax document.
+Set confidence "high" ONLY when the title/layout clearly and unambiguously matches a listed id. If unsure or it's a form not in the list, use "unknown" / "low". Do not guess a listed id.
 
-Set confidence to "high" ONLY when the form's title/layout clearly and unambiguously matches one of the known ids. If you are unsure, if it could be more than one, or if it is a form not in the list, answer "unknown" with confidence "low". Do not guess. Return data only via the tool.`;
+2. isTaxForm: true if this is ANY US tax form (IRS or state — W-2, 1099 variants, 1098, 1040, K-1, W-9, a tax notice, etc.), false if it is not a tax document at all (a photo, a spreadsheet, a receipt, marketing, etc.).
+
+3. formName: your best-guess human name for the form (e.g. "Form 1098 - Mortgage Interest Statement"), or null if not a tax form.
+
+Return data only via the tool.`;
 
   try {
     const response = await client.messages.create({
@@ -66,12 +77,15 @@ Set confidence to "high" ONLY when the form's title/layout clearly and unambiguo
     const parsed = Shape.safeParse(toolUse.input);
     if (!parsed.success) return UNKNOWN;
 
-    const { formType, confidence, note } = parsed.data;
-    // FAIL SAFE: only accept a KNOWN id at HIGH confidence. Everything else → unknown.
+    const { formType, confidence, isTaxForm, formName, note } = parsed.data;
+    // FAIL SAFE for the VERIFIED tier: only a KNOWN id at HIGH confidence gets the
+    // form-specific tax rules. Everything else falls to "unknown" — but we keep
+    // isTaxForm/formName so the router can still offer generic (unverified)
+    // extraction for a tax form we just don't have a definition for.
     if (!KNOWN_FORM_IDS.includes(formType) || confidence !== "high") {
-      return { formType: "unknown", confidence, note: note ?? UNKNOWN.note };
+      return { formType: "unknown", confidence, isTaxForm, formName, note: note ?? UNKNOWN.note };
     }
-    return { formType, confidence, note };
+    return { formType, confidence, isTaxForm, formName, note };
   } catch {
     // A classifier failure must not take down extraction — fail safe to human review.
     return UNKNOWN;

@@ -4,6 +4,7 @@ import { validateW2 } from "@/lib/validation";
 import { detectForms } from "@/review/detect-forms";
 import { classifyForm } from "@/forms/classify";
 import { extractForm } from "@/forms/extract-form";
+import { extractGeneric } from "@/forms/extract-generic";
 import { runValidation } from "@/forms/engine";
 import { getForm } from "@/forms/registry";
 import type { FormInstance } from "@/forms/types";
@@ -71,56 +72,65 @@ export async function POST(req: Request) {
 
   // --- Classify → route → extract + validate ----------------------------
   try {
-    // 1. Classify the document FIRST (untrusted; fails safe to "unknown").
+    // 1. Classify FIRST (untrusted). This tells us three things: which known form
+    //    it is (if any), whether it's a tax form at all, and its best-guess name.
     const classification = await classifyForm(pages);
+    const knownDef = classification.formType !== "unknown" ? getForm(classification.formType) : null;
 
-    // 2. Fail safe: an unidentified / low-confidence form is NEVER guessed —
-    //    it routes to human review. Running the wrong form's tax rules on a
-    //    return would be worse than doing nothing.
-    if (classification.formType === "unknown") {
-      return NextResponse.json({ formType: "unknown", classification });
-    }
+    // --- TIER 1 (VERIFIED): a KNOWN form at HIGH confidence gets its tax rules. ---
+    if (knownDef && classification.confidence === "high") {
+      // W-2 keeps its own rich extraction path (unchanged) + the multi-person scan.
+      if (classification.formType === "w2") {
+        const [outcome, formScan] = await Promise.all([
+          extractW2(pages),
+          detectForms(pages).catch((e) => {
+            console.error("Form scan failed (non-fatal):", e);
+            return null;
+          }),
+        ]);
+        if (!outcome.ok || !outcome.data) {
+          return NextResponse.json(
+            { error: "Extraction failed: the model output did not match the expected W-2 schema.", zodIssues: outcome.zodError?.issues ?? null },
+            { status: 422 },
+          );
+        }
+        const extraction = outcome.data;
+        const validation = validateW2(extraction.w2);
+        return NextResponse.json({ formType: "w2", extraction, validation, formScan, classification });
+      }
 
-    // 3. W-2 keeps its own rich extraction path (unchanged) + the multi-person
-    //    scan. This is the demo-critical path, deliberately untouched.
-    if (classification.formType === "w2") {
-      const [outcome, formScan] = await Promise.all([
-        extractW2(pages),
-        detectForms(pages).catch((e) => {
-          console.error("Form scan failed (non-fatal):", e);
-          return null;
-        }),
-      ]);
+      // Any other known form: build the schema from the definition, extract, validate.
+      const outcome = await extractForm(pages, knownDef);
       if (!outcome.ok || !outcome.data) {
         return NextResponse.json(
-          { error: "Extraction failed: the model output did not match the expected W-2 schema.", zodIssues: outcome.zodError?.issues ?? null },
+          { error: `Extraction failed: the model output did not match the ${knownDef.name} schema.`, zodIssues: outcome.zodError?.issues ?? null },
           { status: 422 },
         );
       }
-      const extraction = outcome.data;
-      const validation = validateW2(extraction.w2);
-      return NextResponse.json({ formType: "w2", extraction, validation, formScan, classification });
+      const instance: FormInstance = outcome.data;
+      if (!Object.values(instance.fields).some((f) => f.present)) {
+        return NextResponse.json({ error: `Couldn't read this as a ${knownDef.name}. Check the file, or try re-extracting.` }, { status: 422 });
+      }
+      const validation = runValidation(instance, knownDef);
+      return NextResponse.json({ formType: classification.formType, instance, validation, verified: true, classification });
     }
 
-    // 4. Any other KNOWN form goes through the generic engine: build the schema
-    //    from the definition, extract, and validate with the same runner.
-    const def = getForm(classification.formType);
-    if (!def) return NextResponse.json({ formType: "unknown", classification });
+    // --- TIER 2 (UNVERIFIED): any OTHER tax form → discover fields, apply NO rules. ---
+    // "Extract from any tax form" without over-claiming trust: we pull what's on
+    // the page and mark it unverified, rather than inventing tax math we don't have.
+    if (classification.isTaxForm) {
+      const g = await extractGeneric(pages);
+      if (!g.ok || !g.data) {
+        return NextResponse.json({ error: "Couldn't extract fields from this form.", zodIssues: g.zodError?.issues ?? null }, { status: 422 });
+      }
+      if (!Object.values(g.data.instance.fields).some((f) => f.present)) {
+        return NextResponse.json({ error: "Couldn't read any fields from this document." }, { status: 422 });
+      }
+      return NextResponse.json({ formType: "generic", verified: false, formName: g.data.formName, instance: g.data.instance, schema: g.data.schema, classification });
+    }
 
-    const outcome = await extractForm(pages, def);
-    if (!outcome.ok || !outcome.data) {
-      return NextResponse.json(
-        { error: `Extraction failed: the model output did not match the ${def.name} schema.`, zodIssues: outcome.zodError?.issues ?? null },
-        { status: 422 },
-      );
-    }
-    const instance: FormInstance = outcome.data;
-    // A form that came back with nothing present is unreadable, not empty.
-    if (!Object.values(instance.fields).some((f) => f.present)) {
-      return NextResponse.json({ error: `Couldn't read this as a ${def.name}. Check the file, or try re-extracting.` }, { status: 422 });
-    }
-    const validation = runValidation(instance, def);
-    return NextResponse.json({ formType: classification.formType, instance, validation, classification });
+    // --- Not a tax form at all → fail safe to human review. ---
+    return NextResponse.json({ formType: "unknown", classification });
   } catch (e) {
     // Anthropic API error, network failure, timeout, etc. — don't crash.
     const message = e instanceof Error ? e.message : "Unknown extraction error.";

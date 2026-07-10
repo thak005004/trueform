@@ -23,7 +23,7 @@ import { encodeForApi, renderDocument, type RenderedPage } from "@/render/render
 import type { W2, W2Extraction } from "@/lib/w2-schema";
 import type { ValidationResult } from "@/lib/validation";
 import type { FormScan } from "@/review/detect-forms";
-import type { FormInstance } from "@/forms/types";
+import type { FormInstance, FieldDef } from "@/forms/types";
 import type { Classification } from "@/forms/classify";
 import { clearStorage, loadFromStorage, saveToStorage } from "@/state/session-file";
 
@@ -58,9 +58,12 @@ export interface PacketDocument {
   audit: AuditEntry[];
 
   // --- form routing (added with the classifier/router) ---
-  formType: string; // "w2" | "1099-nec" | "unknown"; which definition this doc uses
-  formInstance: FormInstance | null; // extracted instance for NON-W-2 forms (generic path)
-  needsReview: boolean; // classifier couldn't identify the form → routed to human review
+  formType: string; // "w2" | "1099-nec" | "generic" | "unknown"
+  formInstance: FormInstance | null; // extracted instance for NON-W-2 forms
+  formSchema: FieldDef[] | null; // synthesized schema for the generic (unverified) tier
+  formName: string | null; // display name for a generic (unrecognized) tax form
+  verified: boolean; // false for the generic tier: extracted but not machine-checked
+  needsReview: boolean; // NOT a tax form → routed to human review
   classification: Classification | null; // the classifier's answer, kept for the UI
 }
 
@@ -126,6 +129,9 @@ function blankDocument(file: File): PacketDocument {
     audit: [],
     formType: "w2", // placeholder until the classifier answers on extraction
     formInstance: null,
+    formSchema: null,
+    formName: null,
+    verified: true,
     needsReview: false,
     classification: null,
   };
@@ -236,6 +242,34 @@ export function PacketProvider({ children }: { children: ReactNode }) {
                     classification,
                     draft: structuredClone(extraction.w2),
                     original: structuredClone(extraction.w2),
+                    confirmed: [],
+                    audit: [],
+                    extractStatus: "done",
+                    extractionVersion: d.extractionVersion + 1,
+                  }
+                : d,
+            ),
+          );
+          return;
+        }
+
+        // Generic tier: any OTHER tax form — discovered fields, marked UNVERIFIED.
+        if (formType === "generic") {
+          const instance = json.instance as unknown as FormInstance;
+          const schema = json.schema as unknown as FieldDef[];
+          const formName = (json.formName as string) ?? "Tax form";
+          setDocuments((docs) =>
+            docs.map((d) =>
+              d.id === docId
+                ? {
+                    ...d,
+                    formType: "generic",
+                    formInstance: instance,
+                    formSchema: schema,
+                    formName,
+                    verified: false,
+                    validation: null,
+                    classification,
                     confirmed: [],
                     audit: [],
                     extractStatus: "done",

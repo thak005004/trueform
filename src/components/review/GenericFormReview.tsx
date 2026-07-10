@@ -46,17 +46,29 @@ const statusColor: Record<string, string> = {
   ok: "var(--verified)",
 };
 
+const EMPTY_VALIDATION: ValidationResult = {
+  issues: [],
+  byField: {},
+  summary: { errors: 0, warnings: 0, infos: 0 },
+  resolvedTaxYear: 0,
+  taxYearExact: true,
+};
+
 export function GenericFormReview({
   def,
   instance,
   pages,
   onChange,
+  verified = true,
 }: {
   def: FormDefinition;
   instance: FormInstance;
   pages: RenderedPage[];
   /** Persist edited instance + fresh validation back to the packet (dashboard/session). */
   onChange?: (next: FormInstance, validation: ValidationResult) => void;
+  /** False for the generic tier: extracted but NOT machine-checked. No rules run,
+   *  fields render neutral, and an "unverified" banner makes the tier explicit. */
+  verified?: boolean;
 }) {
   // Seed editable text AND each field's source ONCE from the extraction. Keeping
   // the sources (and formType) in a stable seed — not read from `instance` on
@@ -82,7 +94,12 @@ export function GenericFormReview({
     return { formType: seed.formType, fields };
   }, [text, def, seed]);
 
-  const validation = useMemo(() => runValidation(draft, def), [draft, def]);
+  // Verified tier runs the engine live; the unverified (generic) tier applies NO
+  // rules — we never invent tax math for a form we don't have a definition for.
+  const validation = useMemo(
+    () => (verified ? runValidation(draft, def) : EMPTY_VALIDATION),
+    [draft, def, verified],
+  );
 
   // Sync edits + fresh validation back to the packet so the dashboard row and
   // saved session reflect corrections. Seeded from `instance` once (useState
@@ -107,7 +124,7 @@ export function GenericFormReview({
     return src ? { page: src.page, bbox: src.bbox } : null;
   }, [selected, draft]);
 
-  const verified = def.schema.filter((f) => (validation.byField[f.id]?.status ?? "ok") === "ok").length;
+  const verifiedCount = def.schema.filter((f) => (validation.byField[f.id]?.status ?? "ok") === "ok").length;
 
   function exportJSON() {
     const rec: Record<string, unknown> = { formType: def.id, taxYear: draft.fields.taxYear?.value ?? null };
@@ -132,7 +149,9 @@ export function GenericFormReview({
           <div className="min-w-0">
             <div className="text-sm font-semibold text-ink">{def.name}</div>
             <div className="figure text-[11px] text-ink-3">
-              {validation.summary.errors} errors · {validation.summary.warnings} review · {verified} verified
+              {verified
+                ? `${validation.summary.errors} errors · ${validation.summary.warnings} review · ${verifiedCount} verified`
+                : "Extracted · not machine-checked"}
             </div>
           </div>
           <button
@@ -144,6 +163,21 @@ export function GenericFormReview({
           </button>
         </div>
 
+        {!verified && (
+          <div className="border-b border-review/40 bg-review-bg px-4 py-2.5">
+            <div className="flex items-start gap-2">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0 text-review" aria-hidden>
+                <path d="M10.3 3.3 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.3a2 2 0 0 0-3.4 0Z" />
+                <path d="M12 9v4" />
+                <path d="M12 17h.01" />
+              </svg>
+              <p className="text-[13px] leading-snug text-review">
+                <span className="font-semibold">Unverified extraction.</span> TrueForm doesn&rsquo;t have a definition for this form, so it read the fields but ran <span className="font-medium">no form-specific tax checks</span>. Confirm every value against the document before using it.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col gap-5 px-4 py-4">
           {groups.map((g) => (
             <section key={g.title}>
@@ -151,6 +185,8 @@ export function GenericFormReview({
               <div className="overflow-hidden rounded-card border border-line">
                 {g.fields.map((f, i) => {
                   const status = validation.byField[f.id]?.status ?? "ok";
+                  // Unverified tier: neutral dot, never a green "checked" signal.
+                  const dot = verified ? statusColor[status] : "var(--ink-3)";
                   const mono = f.type !== "text";
                   return (
                     <div
@@ -158,7 +194,7 @@ export function GenericFormReview({
                       className={`flex items-center gap-3 px-3 py-2.5 ${i > 0 ? "border-t border-line" : ""} ${selected === f.id ? "bg-paper" : ""}`}
                       onClick={() => setSelected(f.id)}
                     >
-                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: statusColor[status] }} aria-label={status} />
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: dot }} aria-label={verified ? status : "unverified"} />
                       <div className="min-w-0 flex-1">
                         {f.box && <div className="figure text-[10px] uppercase tracking-wide text-ink-3">{f.box}</div>}
                         <div className="truncate text-[13px] text-ink-2">{f.label}</div>

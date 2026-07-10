@@ -248,6 +248,23 @@ function DocumentRow({
     );
   }
 
+  // Generic tier: an unrecognized tax form, extracted but not machine-checked.
+  if (doc.formType === "generic" && doc.extractStatus === "done") {
+    return (
+      <li>
+        <button type="button" onClick={() => onOpen(doc.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-paper">
+          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: "var(--ink-3)" }} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium text-ink">{doc.formName ?? "Tax form"}</div>
+            <span className="figure truncate text-[11px] text-ink-3">{doc.fileName}</span>
+          </div>
+          <Badge text="unverified" color="var(--review)" bg="var(--review-bg)" />
+          <span aria-hidden className="text-ink-3">→</span>
+        </button>
+      </li>
+    );
+  }
+
   // Still working: a calm skeleton row, not a frozen blank.
   if (sum.kind === "extracting" || sum.kind === "pending") {
     return (
