@@ -91,20 +91,21 @@ export function IntroScene() {
           className="figure animate-rise text-sm font-medium uppercase tracking-[0.18em] text-ink-2"
           style={{ animationDelay: "0ms" }}
         >
-          W-2 extraction &amp; review
+          Tax form extraction &amp; review
         </p>
         <h1
           className="animate-rise mt-3 text-3xl font-semibold leading-tight tracking-tight text-balance text-ink sm:text-4xl"
           style={{ animationDelay: "60ms" }}
         >
-          Turn a W-2 into data you can trust.
+          Turn tax forms into data you can trust.
         </h1>
         <p
           className="animate-rise mt-4 max-w-lg text-lg text-pretty text-ink-2"
           style={{ animationDelay: "120ms" }}
         >
-          Upload a client&rsquo;s W-2s to begin. TrueForm extracts every box, checks
-          the tax math, and flags exactly what to verify.
+          Upload a client&rsquo;s tax forms, one or many. TrueForm extracts every
+          field, verifies the forms it knows against the tax math, and clearly marks
+          what&rsquo;s checked and what still needs your eyes.
         </p>
 
         <div className="animate-rise mt-9 w-full max-w-xl" style={{ animationDelay: "180ms" }}>
@@ -133,7 +134,7 @@ export function IntroScene() {
           style={{ animationDelay: "300ms" }}
         >
           <p className="text-sm font-semibold uppercase tracking-wider text-ink-2">
-            No W-2 handy? Try a sample
+            No form handy? Try a sample W-2
           </p>
 
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">

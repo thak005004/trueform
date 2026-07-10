@@ -18,13 +18,13 @@ const plexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://trueform-w2.vercel.app"),
-  title: "TrueForm · W-2 Review",
+  title: "TrueForm · Tax Form Review",
   description:
-    "Upload a client's W-2s and get clean, structured data you can check and trust before it goes into your tax software.",
+    "Upload a client's tax forms and get clean, structured data you can check and trust before it goes into your tax software.",
   openGraph: {
-    title: "TrueForm: W-2 extraction you can trust",
+    title: "TrueForm: tax form extraction you can trust",
     description:
-      "Verify and correct extracted W-2 data fast: verifiable tax math, an independent second read, and source-linking.",
+      "Extract any tax form, verify known ones against the tax math, and clearly flag the rest: an independent second read plus source-linking.",
     url: "https://trueform-w2.vercel.app",
     siteName: "TrueForm",
     type: "website",

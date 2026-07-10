@@ -42,7 +42,7 @@ function Header() {
         <LogoMark />
         <div className="flex items-baseline gap-2">
           <span className="text-base font-semibold tracking-tight text-ink">TrueForm</span>
-          <span className="hidden text-sm text-ink-2 sm:inline">W-2 review</span>
+          <span className="hidden text-sm text-ink-2 sm:inline">Tax form review</span>
         </div>
       </div>
 
